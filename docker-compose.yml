@@ -1,0 +1,44 @@
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "8888:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  app:
+    build: .
+    env_file:
+      - .env.docker
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: placetel
+      POSTGRES_PASSWORD: placetel
+      POSTGRES_DB: placetel
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U placetel"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

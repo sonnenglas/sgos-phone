@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  background: #ffffff;
+  color: #000000;
+}
+
+/* Remove default focus outlines, add our own */
+*:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 1px solid #000000;
+  outline-offset: 2px;
+}
+
+/* Subtle page transitions */
+.page-enter {
+  opacity: 0;
+}
+
+.page-enter-active {
+  opacity: 1;
+  transition: opacity 150ms ease;
+}
+
+/* Audio player styling */
+audio::-webkit-media-controls-panel {
+  background: #ffffff;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e5e5e5;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #666666;
+}
+
+/* Selection */
+::selection {
+  background: #000000;
+  color: #ffffff;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 150ms ease;
+}
+
+/* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

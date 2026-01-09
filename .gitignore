@@ -1,0 +1,11 @@
+# dotenvx - .env is encrypted and safe to commit
+# These contain the private key - NEVER commit
+.env.keys
+.env.docker
+
+__pycache__/
+*.pyc
+.venv/
+venv/
+data/voicemails/*.mp3
+.DS_Store
