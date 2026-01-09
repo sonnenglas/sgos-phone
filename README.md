@@ -185,7 +185,7 @@ uvicorn app.main:app --reload
 
 ## Tech Stack
 
-- **Backend**: Python 3.12, FastAPI, SQLAlchemy 2.0
+- **Backend**: Python 3.13, FastAPI, SQLAlchemy 2.0
 - **Frontend**: React 18, TypeScript, Tailwind CSS, Vite
 - **Database**: PostgreSQL 18
 - **Transcription**: ElevenLabs Scribe v2
