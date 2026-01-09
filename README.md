@@ -183,6 +183,56 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+## MCP Server (Claude Integration)
+
+The API can be exposed as an MCP server, allowing Claude to interact directly with your voicemails.
+
+### Setup
+
+1. Install dependencies:
+```bash
+python -m venv .venv
+.venv/bin/pip install fastmcp httpx
+```
+
+2. Make sure the API is running:
+```bash
+docker compose up -d
+```
+
+3. Run the MCP server:
+```bash
+VOICEMAIL_API_URL=http://localhost:9000 .venv/bin/python -m app.mcp_server
+```
+
+### Claude Code Configuration
+
+Add to `~/.claude/claude_desktop_config.json`:
+
+```json
+{
+    "mcpServers": {
+        "voicemail": {
+            "command": "python",
+            "args": ["-m", "app.mcp_server"],
+            "cwd": "/path/to/placetel-api",
+            "env": {
+                "VOICEMAIL_API_URL": "http://localhost:9000"
+            }
+        }
+    }
+}
+```
+
+### Available Tools
+
+- `list_voicemails` - List all voicemails
+- `get_voicemail` - Get details of a specific voicemail
+- `sync_voicemails` - Sync from Placetel
+- `transcribe_voicemail` - Transcribe a voicemail
+- `summarize_voicemail` - Summarize a voicemail
+- `health_check` - Check API health
+
 ## Tech Stack
 
 - **Backend**: Python 3.13, FastAPI, SQLAlchemy 2.0

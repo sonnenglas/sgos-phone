@@ -7,5 +7,6 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+*.egg-info/
 data/voicemails/*.mp3
 .DS_Store
