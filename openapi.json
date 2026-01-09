@@ -1,0 +1,829 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Placetel Voicemail Transcription API",
+        "description": "Fetch voicemails from Placetel, transcribe with ElevenLabs Scribe v2, and store in PostgreSQL.",
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/voicemails": {
+            "get": {
+                "tags": [
+                    "voicemails"
+                ],
+                "summary": "List Voicemails",
+                "description": "List all voicemails with pagination and filtering.",
+                "operationId": "list_voicemails_voicemails_get",
+                "parameters": [
+                    {
+                        "name": "skip",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0,
+                            "title": "Skip"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1,
+                            "default": 50,
+                            "title": "Limit"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter by transcription status",
+                            "title": "Status"
+                        },
+                        "description": "Filter by transcription status"
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Search in transcription text",
+                            "title": "Search"
+                        },
+                        "description": "Search in transcription text"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/VoicemailResponse"
+                                    },
+                                    "title": "Response List Voicemails Voicemails Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/voicemails/{voicemail_id}": {
+            "get": {
+                "tags": [
+                    "voicemails"
+                ],
+                "summary": "Get Voicemail",
+                "description": "Get a single voicemail by ID.",
+                "operationId": "get_voicemail_voicemails__voicemail_id__get",
+                "parameters": [
+                    {
+                        "name": "voicemail_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Voicemail Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/VoicemailResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "voicemails"
+                ],
+                "summary": "Delete Voicemail",
+                "description": "Delete a voicemail and its audio file.",
+                "operationId": "delete_voicemail_voicemails__voicemail_id__delete",
+                "parameters": [
+                    {
+                        "name": "voicemail_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Voicemail Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/voicemails/{voicemail_id}/audio": {
+            "get": {
+                "tags": [
+                    "voicemails"
+                ],
+                "summary": "Get Voicemail Audio",
+                "description": "Stream/download the voicemail audio file.",
+                "operationId": "get_voicemail_audio_voicemails__voicemail_id__audio_get",
+                "parameters": [
+                    {
+                        "name": "voicemail_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Voicemail Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/sync": {
+            "post": {
+                "tags": [
+                    "sync"
+                ],
+                "summary": "Sync Voicemails",
+                "description": "Fetch voicemails from Placetel and store them in the database.",
+                "operationId": "sync_voicemails_sync_post",
+                "parameters": [
+                    {
+                        "name": "days",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 365,
+                            "minimum": 1,
+                            "description": "Number of days to sync",
+                            "default": 30,
+                            "title": "Days"
+                        },
+                        "description": "Number of days to sync"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SyncResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/voicemails/{voicemail_id}/transcribe": {
+            "post": {
+                "tags": [
+                    "sync"
+                ],
+                "summary": "Transcribe Voicemail",
+                "description": "Transcribe a single voicemail.",
+                "operationId": "transcribe_voicemail_voicemails__voicemail_id__transcribe_post",
+                "parameters": [
+                    {
+                        "name": "voicemail_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Voicemail Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/transcribe-pending": {
+            "post": {
+                "tags": [
+                    "sync"
+                ],
+                "summary": "Transcribe Pending",
+                "description": "Transcribe all pending voicemails (skips those < 2 seconds).",
+                "operationId": "transcribe_pending_transcribe_pending_post",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1,
+                            "description": "Maximum number to transcribe",
+                            "default": 10,
+                            "title": "Limit"
+                        },
+                        "description": "Maximum number to transcribe"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TranscribeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/voicemails/{voicemail_id}/summarize": {
+            "post": {
+                "tags": [
+                    "sync"
+                ],
+                "summary": "Summarize Voicemail",
+                "description": "Summarize and correct a single voicemail transcript using LLM.",
+                "operationId": "summarize_voicemail_voicemails__voicemail_id__summarize_post",
+                "parameters": [
+                    {
+                        "name": "voicemail_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Voicemail Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/summarize-pending": {
+            "post": {
+                "tags": [
+                    "sync"
+                ],
+                "summary": "Summarize Pending",
+                "description": "Summarize all transcribed voicemails that haven't been summarized yet.",
+                "operationId": "summarize_pending_summarize_pending_post",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1,
+                            "description": "Maximum number to summarize",
+                            "default": 10,
+                            "title": "Limit"
+                        },
+                        "description": "Maximum number to summarize"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SummarizeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "tags": [
+                    "health"
+                ],
+                "summary": "Health Check",
+                "description": "Health check endpoint.",
+                "operationId": "health_check_health_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HealthResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "HealthResponse": {
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "title": "Status"
+                    },
+                    "database": {
+                        "type": "string",
+                        "title": "Database"
+                    },
+                    "voicemails_count": {
+                        "type": "integer",
+                        "title": "Voicemails Count"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "status",
+                    "database",
+                    "voicemails_count"
+                ],
+                "title": "HealthResponse"
+            },
+            "SummarizeResponse": {
+                "properties": {
+                    "summarized": {
+                        "type": "integer",
+                        "title": "Summarized"
+                    },
+                    "failed": {
+                        "type": "integer",
+                        "title": "Failed"
+                    },
+                    "skipped": {
+                        "type": "integer",
+                        "title": "Skipped"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "summarized",
+                    "failed",
+                    "skipped"
+                ],
+                "title": "SummarizeResponse"
+            },
+            "SyncResponse": {
+                "properties": {
+                    "synced": {
+                        "type": "integer",
+                        "title": "Synced"
+                    },
+                    "new": {
+                        "type": "integer",
+                        "title": "New"
+                    },
+                    "updated": {
+                        "type": "integer",
+                        "title": "Updated"
+                    },
+                    "downloaded": {
+                        "type": "integer",
+                        "title": "Downloaded"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "synced",
+                    "new",
+                    "updated",
+                    "downloaded"
+                ],
+                "title": "SyncResponse"
+            },
+            "TranscribeResponse": {
+                "properties": {
+                    "transcribed": {
+                        "type": "integer",
+                        "title": "Transcribed"
+                    },
+                    "failed": {
+                        "type": "integer",
+                        "title": "Failed"
+                    },
+                    "skipped": {
+                        "type": "integer",
+                        "title": "Skipped"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "transcribed",
+                    "failed",
+                    "skipped"
+                ],
+                "title": "TranscribeResponse"
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            },
+            "VoicemailResponse": {
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "title": "Id"
+                    },
+                    "from_number": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "From Number"
+                    },
+                    "to_number": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "To Number"
+                    },
+                    "to_number_name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "To Number Name"
+                    },
+                    "duration": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Duration"
+                    },
+                    "received_at": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Received At"
+                    },
+                    "unread": {
+                        "type": "boolean",
+                        "title": "Unread",
+                        "default": true
+                    },
+                    "local_file_path": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Local File Path"
+                    },
+                    "transcription_status": {
+                        "type": "string",
+                        "title": "Transcription Status",
+                        "default": "pending"
+                    },
+                    "transcription_text": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Transcription Text"
+                    },
+                    "transcription_language": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Transcription Language"
+                    },
+                    "transcription_confidence": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Transcription Confidence"
+                    },
+                    "transcribed_at": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Transcribed At"
+                    },
+                    "corrected_text": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Corrected Text"
+                    },
+                    "summary": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Summary"
+                    },
+                    "summary_model": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Summary Model"
+                    },
+                    "summarized_at": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Summarized At"
+                    },
+                    "created_at": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Created At"
+                    },
+                    "updated_at": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Updated At"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id"
+                ],
+                "title": "VoicemailResponse"
+            }
+        }
+    }
+}
