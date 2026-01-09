@@ -1,6 +1,6 @@
 import type { Voicemail, SyncResponse, TranscribeResponse, SummarizeResponse, HealthResponse } from './types';
 
-const API_BASE = '/api';
+const API_BASE = '';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {

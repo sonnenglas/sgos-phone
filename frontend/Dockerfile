@@ -1,5 +1,7 @@
-# Build stage
-FROM node:20-alpine AS build
+# Development Dockerfile - for local frontend dev only
+# Production uses the main Dockerfile which builds frontend into the app container
+
+FROM node:20-alpine
 
 WORKDIR /app
 
@@ -7,17 +9,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
 
-# Production stage
-FROM nginx:alpine
+EXPOSE 5173
 
-# Copy built assets
-COPY --from=build /app/dist /usr/share/nginx/html
-
-# Copy nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["npm", "run", "dev", "--", "--host"]

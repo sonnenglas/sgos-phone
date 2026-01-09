@@ -1,3 +1,15 @@
+# Stage 1: Build frontend
+FROM node:20-alpine AS frontend-build
+
+WORKDIR /frontend
+
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci
+
+COPY frontend/ .
+RUN npm run build
+
+# Stage 2: Python runtime
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -17,6 +29,9 @@ COPY alembic.ini .
 COPY alembic/ alembic/
 COPY app/ app/
 COPY .env .
+
+# Copy built frontend
+COPY --from=frontend-build /frontend/dist /app/static
 
 # Create data directory
 RUN mkdir -p /app/data/voicemails
