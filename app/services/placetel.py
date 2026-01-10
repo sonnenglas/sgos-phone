@@ -59,3 +59,16 @@ class PlacetelService:
                 f.write(response.content)
 
         return str(local_path)
+
+    async def fetch_numbers(self) -> list[dict]:
+        """Fetch all phone numbers from Placetel API."""
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/numbers",
+                headers=self.headers,
+                params={"per_page": 100},
+            )
+
+            if response.status_code == 200:
+                return response.json()
+            return []

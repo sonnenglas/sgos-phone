@@ -8,8 +8,21 @@ interface Settings {
   auto_transcribe: string;
   auto_summarize: string;
   auto_email: string;
-  helpdesk_api_url: string;
+  notification_email: string;
+  email_only_after: string;
   last_sync_at: string;
+}
+
+function formatDateTimeLocal(isoString: string): string {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  // Format as YYYY-MM-DDTHH:MM for datetime-local input
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 export default function Admin() {
@@ -152,11 +165,18 @@ export default function Admin() {
             />
           </div>
 
+        </div>
+      </section>
+
+      {/* Email Settings */}
+      <section className="mb-12">
+        <h2 className="text-xs font-medium text-secondary uppercase tracking-wide mb-4">Email Notifications</h2>
+        <div className="border border-border divide-y divide-border">
           {/* Auto Email */}
           <div className="p-4 flex items-center justify-between">
             <div>
-              <p className="font-medium">Send to Helpdesk</p>
-              <p className="text-sm text-secondary">Send completed voicemails to helpdesk system</p>
+              <p className="font-medium">Auto Send Emails</p>
+              <p className="text-sm text-secondary">Automatically email new voicemails after processing</p>
             </div>
             <ToggleSwitch
               enabled={settings?.auto_email === 'true'}
@@ -165,20 +185,46 @@ export default function Admin() {
             />
           </div>
 
-          {/* Helpdesk API URL */}
-          {settings?.auto_email === 'true' && (
-            <div className="p-4">
-              <p className="font-medium mb-2">Helpdesk API URL</p>
-              <input
-                type="text"
-                value={settings?.helpdesk_api_url || ''}
-                onChange={(e) => updateSetting('helpdesk_api_url', e.target.value)}
-                placeholder="https://api.example.com/helpdesk"
-                disabled={saving}
-                className="w-full border border-border px-3 py-2 text-sm"
-              />
-            </div>
-          )}
+          {/* Notification Email */}
+          <div className="p-4">
+            <p className="font-medium mb-2">Notification Email</p>
+            <p className="text-sm text-secondary mb-2">Where to send voicemail notifications</p>
+            <input
+              type="email"
+              value={settings?.notification_email || ''}
+              onChange={(e) => updateSetting('notification_email', e.target.value)}
+              placeholder="helpdesk@example.com"
+              disabled={saving}
+              className="w-full border border-border px-3 py-2 text-sm"
+            />
+          </div>
+
+          {/* Email Cutoff Date */}
+          <div className="p-4">
+            <p className="font-medium mb-2">Email Cutoff Date</p>
+            <p className="text-sm text-secondary mb-2">
+              Only voicemails received <strong>after</strong> this date will be emailed.
+              Leave empty to email all pending voicemails.
+            </p>
+            <input
+              type="datetime-local"
+              value={settings?.email_only_after ? formatDateTimeLocal(settings.email_only_after) : ''}
+              onChange={(e) => {
+                const value = e.target.value ? new Date(e.target.value).toISOString() : '';
+                updateSetting('email_only_after', value);
+              }}
+              disabled={saving}
+              className="border border-border px-3 py-2 text-sm"
+            />
+            {settings?.email_only_after && (
+              <button
+                onClick={() => updateSetting('email_only_after', '')}
+                className="ml-2 text-sm text-secondary hover:text-black"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       </section>
 

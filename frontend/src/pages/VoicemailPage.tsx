@@ -141,7 +141,7 @@ export default function VoicemailPage() {
       <div className="flex gap-8 mb-8 text-sm">
         <div>
           <span className="text-secondary">Received</span>
-          <p className="mt-1">{formatDateTime(voicemail.received_at)}</p>
+          <p className="mt-1">{formatDateTime(voicemail.started_at)}</p>
         </div>
         <div>
           <span className="text-secondary">Duration</span>
@@ -178,16 +178,16 @@ export default function VoicemailPage() {
       )}
 
       {/* Classification */}
-      {(voicemail.sentiment || voicemail.category || voicemail.is_urgent) && (
+      {(voicemail.sentiment || voicemail.category || voicemail.priority === 'high') && (
         <div className="mb-8">
           <h2 className="text-xs font-medium text-secondary uppercase tracking-wide mb-3">
             Classification
           </h2>
           <div className="flex flex-wrap gap-4 p-4 border border-border">
-            {voicemail.is_urgent && (
+            {voicemail.priority === 'high' && (
               <div>
                 <span className="text-xs text-secondary block mb-1">Priority</span>
-                <Badge variant="urgent">Urgent</Badge>
+                <Badge variant="urgent">High</Badge>
               </div>
             )}
             {voicemail.sentiment && (

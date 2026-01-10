@@ -1,99 +1,170 @@
-# Phone (sgos.phone)
+# Phone
 
-Internal phone management system. Currently handles **voicemail/mailbox messages** from Placetel:
+Internal phone management system for voicemail processing.
+
+## What It Does
 
 1. **Syncs** voicemails from Placetel API
 2. **Transcribes** audio using ElevenLabs speech-to-text
 3. **Summarizes** transcripts with AI (sentiment, emotion, category, urgency)
-4. **Forwards** to helpdesk via configurable API
-
-## Current Integration: Voicemail
-
-The only active module is voicemail processing. Future modules may include call logs, IVR management, etc.
+4. **Emails** notifications via Postmark
 
 ### Processing Pipeline
 
 ```
-Placetel API → Sync → Download MP3 → Transcribe → Summarize/Classify → Helpdesk API
+Placetel → Sync → Download MP3 → Transcribe (ElevenLabs) → Summarize (AI) → Email (Postmark)
 ```
 
 Each voicemail gets:
 - **Transcription**: Full text from audio
 - **Corrected text**: LLM-cleaned transcript
-- **Summary**: 2-3 sentence summary for support agents
-- **Classification**: sentiment, emotion, category, is_urgent
+- **Summary**: In original language + English translation
+- **Classification**: sentiment, emotion, category, priority
 
-## Quick Start
+## Deployment
+
+### Prerequisites
+
+- Docker & Docker Compose
+- Dokploy (or similar) for VPS deployment
+- DOTENV_PRIVATE_KEY for encrypted secrets
+
+### Quick Start (Local)
 
 ```bash
-git clone https://github.com/stefanneubig/sgos.phone.git
-cd sgos.phone
+git clone https://github.com/stefanneubig/phone.git
+cd phone
 
-# Set decryption key for encrypted .env
+# Create .env.docker with decryption key
 echo "DOTENV_PRIVATE_KEY=your-key-here" > .env.docker
 
 # Start
 docker compose up -d
+
+# App runs at http://localhost:9000
 ```
 
-App runs at **http://localhost:9000**
+### Production Deployment (Dokploy)
+
+1. **Create Application** in Dokploy
+   - Source: GitHub `stefanneubig/phone`
+   - Build: Docker Compose
+   - Compose file: `docker-compose.yml`
+
+2. **Set Environment Variable**
+   ```
+   DOTENV_PRIVATE_KEY=<your-key>
+   ```
+
+3. **Deploy** - Dokploy builds and starts the container
+
+4. **Configure Cloudflare Tunnel** (optional)
+   - Point `phone.yourdomain.com` to the container
+   - Enable Zero Trust for authentication
+
+5. **Initial Setup** after first deploy:
+   - Go to Settings page (`/admin`)
+   - Set **Email Cutoff Date** to now (prevents emailing imported voicemails)
+   - Set **Notification Email** address
+   - Enable **Auto Send Emails** when ready
+
+### Database
+
+PostgreSQL is included in docker-compose. Data persists in Docker volume `phone_db_data`.
+
+For production, migrations run automatically on startup via Alembic.
 
 ## Configuration
 
-### Settings (Admin UI)
+### Settings (Admin UI at /admin)
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Sync Interval | 15 min | How often to fetch from Placetel |
 | Auto Transcribe | On | Transcribe new voicemails automatically |
 | Auto Summarize | On | Summarize after transcription |
-| Send to Helpdesk | Off | Forward to helpdesk API |
-| Helpdesk API URL | — | Target endpoint |
+| Auto Send Emails | Off | Email notifications after processing |
+| Notification Email | — | Where to send voicemail emails |
+| Email Cutoff Date | — | Only email voicemails after this date |
 
 ### Environment Variables
 
-Encrypted in `.env`, decrypted at runtime with dotenvx:
+Encrypted in `.env` using dotenvx. Decrypted at runtime.
 
-| Variable | Description |
-|----------|-------------|
-| `PLACETEL_API_KEY` | Placetel API access |
-| `ELEVENLABS_API_KEY` | ElevenLabs transcription |
-| `OPENROUTER_API_KEY` | OpenRouter LLM |
-| `DATABASE_URL` | PostgreSQL connection |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `PLACETEL_API_KEY` | Yes | Placetel API access |
+| `ELEVENLABS_API_KEY` | Yes | ElevenLabs transcription |
+| `OPENROUTER_API_KEY` | Yes | OpenRouter LLM for summaries |
+| `POSTMARK_API_TOKEN` | Yes | Postmark email sending |
+| `EMAIL_FROM` | Yes | Sender email (e.g., phone@domain.com) |
+| `EMAIL_FROM_NAME` | No | Sender name (default: "Phone App") |
+| `BASE_URL` | Yes | Public URL (e.g., https://phone.domain.com) |
+| `PUBLIC_ACCESS_SECRET` | Yes | Secret for token-based public links |
+| `ALLOWED_EMAIL` | No | Admin email for auth (default: stefan@sonnenglas.net) |
+| `ENV` | No | Set to "development" to disable auth |
 
-## API
+### Adding/Updating Secrets
+
+```bash
+# Encrypt a new variable
+dotenvx set VARIABLE_NAME "value" -f .env
+
+# The encrypted value is added to .env
+# Commit .env (safe - it's encrypted)
+```
+
+## Authentication
+
+In production, authentication uses **Cloudflare Zero Trust** headers:
+- `stefan@sonnenglas.net` → Full admin access
+- `*@sonnenglas.net` → View-only access (listen pages)
+- Public listen pages use token-based auth (for email links)
+
+In development (`ENV=development`), auth is disabled.
+
+## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/voicemails` | List voicemails |
 | GET | `/voicemails/{id}` | Get single voicemail |
 | GET | `/voicemails/{id}/audio` | Stream audio |
+| GET | `/voicemails/{id}/email-preview` | Preview email HTML |
 | DELETE | `/voicemails/{id}` | Delete voicemail |
-| GET | `/settings` | Get settings |
+| POST | `/voicemails/{id}/transcribe` | Transcribe one |
+| POST | `/voicemails/{id}/summarize` | Summarize one |
+| GET | `/settings` | Get all settings |
 | PUT | `/settings/{key}` | Update setting |
 | POST | `/settings/sync-now` | Manual sync |
+| POST | `/settings/reprocess/{id}` | Re-transcribe + summarize + email |
+| POST | `/settings/send-email/{id}` | Manually send email |
+| GET | `/listen/{id}?token=xxx` | Public voicemail player |
 | GET | `/health` | Health check |
 
-Full docs at `/docs` (Swagger UI)
+Full API docs at `/docs` (Swagger UI)
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Phone (sgos.phone)                      │
+│                        Phone App                             │
 ├─────────────────────────────────────────────────────────────┤
-│  Frontend (React)          │  Backend (FastAPI)             │
-│  ├─ Voicemail list         │  ├─ REST API                   │
-│  ├─ Voicemail detail       │  ├─ Background scheduler       │
-│  └─ Settings               │  └─ Helpdesk integration       │
+│  Frontend (React)          │  Backend (FastAPI)              │
+│  ├─ Voicemail list         │  ├─ REST API                    │
+│  ├─ Voicemail detail       │  ├─ Background scheduler        │
+│  └─ Settings               │  └─ Email service (Postmark)    │
 ├─────────────────────────────────────────────────────────────┤
-│  Background Jobs (APScheduler, every N minutes)             │
-│  ├─ Sync from Placetel                                      │
-│  ├─ Transcribe pending                                      │
-│  ├─ Summarize & classify                                    │
-│  └─ Forward to helpdesk                                     │
+│  Background Jobs (APScheduler)                               │
+│  ├─ Sync from Placetel (every N minutes)                    │
+│  ├─ Transcribe pending (ElevenLabs)                         │
+│  ├─ Summarize & classify (OpenRouter)                       │
+│  └─ Send email notifications (Postmark)                     │
 ├─────────────────────────────────────────────────────────────┤
-│  PostgreSQL 18                                              │
+│  PostgreSQL                                                  │
+│  ├─ calls table (voicemails)                                │
+│  └─ settings table (config)                                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -101,10 +172,12 @@ Full docs at `/docs` (Swagger UI)
 
 - **Backend**: Python 3.13, FastAPI, SQLAlchemy 2.0, APScheduler
 - **Frontend**: React 18, TypeScript, Tailwind CSS, Vite
-- **Database**: PostgreSQL 18
+- **Database**: PostgreSQL
 - **Transcription**: ElevenLabs Scribe v2
-- **Summarization**: OpenRouter (Gemini 2.5 Pro)
-- **Secrets**: dotenvx
+- **Summarization**: OpenRouter (configurable model)
+- **Email**: Postmark
+- **Secrets**: dotenvx (encrypted .env)
+- **Auth**: Cloudflare Zero Trust
 
 ## Development
 
@@ -113,14 +186,42 @@ Full docs at `/docs` (Swagger UI)
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+dotenvx run -- uvicorn app.main:app --reload
 
-# Frontend
+# Frontend (separate terminal)
 cd frontend
 npm install
 npm run dev
 ```
 
+## Files
+
+```
+├── app/
+│   ├── main.py           # FastAPI app, routes, middleware
+│   ├── config.py         # Environment config
+│   ├── database.py       # SQLAlchemy setup
+│   ├── models.py         # Database models
+│   ├── schemas.py        # Pydantic schemas
+│   ├── routers/
+│   │   ├── calls.py      # Voicemail endpoints
+│   │   ├── sync.py       # Sync/transcribe/summarize
+│   │   ├── settings.py   # Settings CRUD
+│   │   └── webhook.py    # Placetel webhook
+│   └── services/
+│       ├── placetel.py   # Placetel API client
+│       ├── elevenlabs.py # Transcription
+│       ├── openrouter.py # LLM summarization
+│       ├── email.py      # Postmark email
+│       ├── scheduler.py  # Background jobs
+│       └── access_token.py # Token generation
+├── frontend/             # React app
+├── alembic/              # Database migrations
+├── docker-compose.yml
+├── Dockerfile
+└── .env                  # Encrypted secrets
+```
+
 ## License
 
-Proprietary
+Proprietary - Stefan Neubig

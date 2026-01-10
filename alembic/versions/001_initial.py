@@ -33,49 +33,59 @@ def upgrade() -> None:
         ('auto_transcribe', 'true'),
         ('auto_summarize', 'true'),
         ('auto_email', 'false'),
-        ('helpdesk_api_url', ''),
-        ('last_sync_at', '')
+        ('notification_email', ''),
+        ('last_sync_at', ''),
+        ('email_only_after', '')
     """)
 
-    # Voicemails table
+    # Calls table (unified for all call types)
     op.create_table(
-        'voicemails',
+        'calls',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column('external_id', sa.String(100), nullable=False),
         sa.Column('provider', sa.String(50), nullable=False, server_default='placetel'),
 
-        # Call info
+        # Call basics
+        sa.Column('direction', sa.String(10), server_default='in'),  # in, out
+        sa.Column('status', sa.String(20), server_default='voicemail'),  # answered, missed, voicemail, busy
         sa.Column('from_number', sa.String(50)),
+        sa.Column('from_name', sa.String(255)),
         sa.Column('to_number', sa.String(50)),
         sa.Column('to_number_name', sa.String(255)),
         sa.Column('duration', sa.Integer()),
-        sa.Column('received_at', sa.DateTime(timezone=True)),
-        sa.Column('unread', sa.Boolean(), server_default='true'),
 
-        # Audio
+        # Timing
+        sa.Column('started_at', sa.DateTime(timezone=True)),
+        sa.Column('answered_at', sa.DateTime(timezone=True)),
+        sa.Column('ended_at', sa.DateTime(timezone=True)),
+
+        # Audio (voicemail)
         sa.Column('file_url', sa.Text()),
         sa.Column('local_file_path', sa.String(500)),
+        sa.Column('unread', sa.Boolean(), server_default='true'),
 
         # Transcription
         sa.Column('transcription_status', sa.String(20), server_default='pending'),
         sa.Column('transcription_text', sa.Text()),
         sa.Column('transcription_language', sa.String(10)),
         sa.Column('transcription_confidence', sa.Float()),
+        sa.Column('transcription_model', sa.String(100)),  # Model used for transcription
         sa.Column('transcribed_at', sa.DateTime(timezone=True)),
 
-        # Summary
+        # AI Processing
         sa.Column('corrected_text', sa.Text()),
-        sa.Column('summary', sa.Text()),
-        sa.Column('summary_model', sa.String(100)),
+        sa.Column('summary', sa.Text()),  # Summary in original language
+        sa.Column('summary_en', sa.Text()),  # English translation
+        sa.Column('summary_model', sa.String(100)),  # Model used for summarization
         sa.Column('summarized_at', sa.DateTime(timezone=True)),
 
-        # AI Classification
+        # Classification
         sa.Column('sentiment', sa.String(20)),  # positive, negative, neutral
         sa.Column('emotion', sa.String(20)),  # angry, frustrated, happy, confused, calm, urgent
         sa.Column('category', sa.String(30)),  # sales_inquiry, existing_order, new_inquiry, complaint, general
-        sa.Column('is_urgent', sa.Boolean(), server_default='false'),
+        sa.Column('priority', sa.String(10), server_default='default'),  # low, default, high
 
-        # Email/Helpdesk
+        # Helpdesk
         sa.Column('email_status', sa.String(20), server_default='pending'),
         sa.Column('email_sent_at', sa.DateTime(timezone=True)),
 
@@ -87,11 +97,13 @@ def upgrade() -> None:
     )
 
     # Indexes
-    op.create_index('idx_voicemails_received_at', 'voicemails', ['received_at'])
-    op.create_index('idx_voicemails_status', 'voicemails', ['transcription_status'])
-    op.create_index('idx_voicemails_email_status', 'voicemails', ['email_status'])
+    op.create_index('idx_calls_started_at', 'calls', ['started_at'])
+    op.create_index('idx_calls_direction', 'calls', ['direction'])
+    op.create_index('idx_calls_status', 'calls', ['status'])
+    op.create_index('idx_calls_transcription_status', 'calls', ['transcription_status'])
+    op.create_index('idx_calls_email_status', 'calls', ['email_status'])
 
 
 def downgrade() -> None:
-    op.drop_table('voicemails')
+    op.drop_table('calls')
     op.drop_table('settings')

@@ -71,8 +71,8 @@ function getCategoryLabel(category: string | null): string {
 function getClassificationBadges(voicemail: Voicemail) {
   const badges: JSX.Element[] = [];
 
-  if (voicemail.is_urgent) {
-    badges.push(<Badge key="urgent" variant="urgent" size="sm">Urgent</Badge>);
+  if (voicemail.priority === 'high') {
+    badges.push(<Badge key="priority" variant="urgent" size="sm">High</Badge>);
   }
 
   if (voicemail.sentiment === 'negative') {
@@ -143,7 +143,7 @@ export default function VoicemailCard({ voicemail }: VoicemailCardProps) {
 
         <div className="text-right flex-shrink-0">
           <div className="text-sm text-secondary">
-            {formatDate(voicemail.received_at)}
+            {formatDate(voicemail.started_at)}
           </div>
           <div className="text-sm text-secondary mt-1">
             {formatDuration(voicemail.duration)}

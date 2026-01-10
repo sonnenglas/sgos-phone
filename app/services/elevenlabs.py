@@ -10,6 +10,7 @@ class TranscriptionResult:
     text: str
     language: str
     confidence: float
+    model: str = ""
     words: Optional[list] = None
 
 
@@ -48,6 +49,7 @@ class ElevenLabsService:
                         text="[Audio too short to transcribe]",
                         language="unknown",
                         confidence=0.0,
+                        model=self.model,
                     )
                 raise Exception(f"Transcription failed: {response.text}")
 
@@ -57,5 +59,6 @@ class ElevenLabsService:
                 text=result.get("text", ""),
                 language=result.get("language_code", "unknown"),
                 confidence=result.get("language_probability", 0.0),
+                model=self.model,
                 words=result.get("words"),
             )

@@ -7,11 +7,12 @@ from app.config import get_settings
 @dataclass
 class SummaryResult:
     corrected_text: str
-    summary: str
+    summary: str  # Summary in original language
+    summary_en: str  # English translation
     sentiment: str  # positive, negative, neutral
     emotion: str  # angry, frustrated, happy, confused, calm, urgent
     category: str  # sales_inquiry, existing_order, new_inquiry, complaint, general
-    is_urgent: bool
+    priority: str  # low, default, high
 
 
 class OpenRouterService:
@@ -43,11 +44,14 @@ class OpenRouterService:
         system_prompt = """You are an assistant that processes voicemail transcriptions for a customer support team.
 
 Your task is to:
-1. CORRECT the transcript: Fix obvious speech-to-text errors (wrong words, missing punctuation, unclear sentences). Keep the meaning intact.
+1. CORRECT the transcript: Fix obvious speech-to-text errors (wrong words, missing punctuation, unclear sentences). Keep the meaning intact. Keep in the original language.
 2. SUMMARIZE for support: Create a brief, actionable summary (2-3 sentences max) that tells a support agent:
    - Who is calling (name if mentioned)
    - What they want/need
    - Any callback number or urgency
+   Write TWO summaries:
+   - "summary": In the SAME LANGUAGE as the voicemail (e.g., German if the caller spoke German)
+   - "summary_en": Always in ENGLISH (translation of the summary)
 3. CLASSIFY the voicemail:
    - sentiment: "positive", "negative", or "neutral"
    - emotion: "angry", "frustrated", "happy", "confused", "calm", or "urgent"
@@ -57,31 +61,35 @@ Your task is to:
      * "new_inquiry" - New customer, first contact, general interest
      * "complaint" - Unhappy customer, issues, problems
      * "general" - Other/general questions
-   - is_urgent: true if the caller needs immediate attention (angry, time-sensitive, emergency)
+   - priority: "low", "default", or "high"
+     * "low" - Non-urgent, informational, can wait
+     * "default" - Normal priority, standard response time
+     * "high" - Urgent, angry caller, time-sensitive, needs immediate attention
 
 Output format (JSON):
 {
-  "corrected_text": "The corrected transcript text...",
-  "summary": "Brief summary for support agent...",
+  "corrected_text": "The corrected transcript in original language...",
+  "summary": "Brief summary in ORIGINAL LANGUAGE...",
+  "summary_en": "Brief summary in ENGLISH...",
   "sentiment": "positive|negative|neutral",
   "emotion": "angry|frustrated|happy|confused|calm|urgent",
   "category": "sales_inquiry|existing_order|new_inquiry|complaint|general",
-  "is_urgent": true|false
+  "priority": "low|default|high"
 }
 
 Important:
 - Preserve the caller's intent and key details
 - The corrected text should be readable and professional
 - The summary should be concise and actionable
-- Be conservative with is_urgent - only mark true for genuinely urgent situations
-- If the transcript is very short or empty, use neutral/calm/general as defaults"""
+- Be conservative with high priority - only for genuinely urgent situations
+- If the transcript is very short or empty, use neutral/calm/general/default as defaults"""
 
         user_prompt = f"""Process this voicemail transcript (language: {language}):
 
 TRANSCRIPT:
 {transcript}
 
-Return JSON with corrected_text, summary, sentiment, emotion, category, and is_urgent."""
+Return JSON with corrected_text, summary (in original language), summary_en (English), sentiment, emotion, category, and priority."""
 
         payload = {
             "model": self.model,
@@ -110,21 +118,25 @@ Return JSON with corrected_text, summary, sentiment, emotion, category, and is_u
             import json
             try:
                 parsed = json.loads(content)
+                summary = parsed.get("summary", "No summary available")
+                summary_en = parsed.get("summary_en", summary)  # Fallback to original if no translation
                 return SummaryResult(
                     corrected_text=parsed.get("corrected_text", transcript),
-                    summary=parsed.get("summary", "No summary available"),
+                    summary=summary,
+                    summary_en=summary_en,
                     sentiment=parsed.get("sentiment", "neutral"),
                     emotion=parsed.get("emotion", "calm"),
                     category=parsed.get("category", "general"),
-                    is_urgent=parsed.get("is_urgent", False),
+                    priority=parsed.get("priority", "default"),
                 )
             except json.JSONDecodeError:
                 # Fallback if JSON parsing fails
                 return SummaryResult(
                     corrected_text=transcript,
                     summary=content[:500] if content else "Processing failed",
+                    summary_en=content[:500] if content else "Processing failed",
                     sentiment="neutral",
                     emotion="calm",
                     category="general",
-                    is_urgent=False,
+                    priority="default",
                 )

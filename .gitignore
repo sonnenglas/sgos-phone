@@ -3,10 +3,19 @@
 .env.keys
 .env.docker
 
+# Python
 __pycache__/
 *.pyc
 .venv/
 venv/
 *.egg-info/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Data
 data/voicemails/*.mp3
+
+# OS
 .DS_Store

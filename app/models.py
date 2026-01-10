@@ -11,47 +11,70 @@ class Setting(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
-class Voicemail(Base):
-    __tablename__ = "voicemails"
+class Call(Base):
+    """
+    All phone calls - incoming, outgoing, answered, missed, voicemail.
+
+    Voicemail-specific fields (transcription, summary, etc.) are nullable
+    and only populated for calls with status='voicemail'.
+    """
+    __tablename__ = "calls"
     __table_args__ = (
         UniqueConstraint('provider', 'external_id', name='uq_provider_external_id'),
     )
 
-    id = Column(Integer, primary_key=True, autoincrement=True)  # Internal ID
-    external_id = Column(String(100), nullable=False)  # Provider's voicemail ID
-    provider = Column(String(50), nullable=False, default="placetel")  # Voicemail provider
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    external_id = Column(String(100), nullable=False)
+    provider = Column(String(50), nullable=False, default="placetel")
+
+    # Call basics
+    direction = Column(String(10), default="in")  # in, out
+    status = Column(String(20), default="voicemail")  # answered, missed, voicemail, busy
     from_number = Column(String(50))
+    from_name = Column(String(255))  # Caller name if known
     to_number = Column(String(50))
-    to_number_name = Column(String(255))
-    duration = Column(Integer)  # seconds
-    received_at = Column(DateTime(timezone=True))
-    file_url = Column(Text)  # Original Placetel URL (expires)
+    to_number_name = Column(String(255))  # Destination name (e.g., "Support")
+    duration = Column(Integer)  # Total duration in seconds
+
+    # Timing
+    started_at = Column(DateTime(timezone=True))  # When call started ringing
+    answered_at = Column(DateTime(timezone=True))  # When call was answered (null if missed/voicemail)
+    ended_at = Column(DateTime(timezone=True))  # When call ended
+
+    # Voicemail audio
+    file_url = Column(Text)  # Original provider URL (may expire)
     local_file_path = Column(String(500))  # Local storage path
     unread = Column(Boolean, default=True)
 
-    # Transcription
-    transcription_status = Column(String(20), default="pending")  # pending, processing, completed, failed
+    # Transcription (voicemail only)
+    transcription_status = Column(String(20), default="pending")  # pending, processing, completed, failed, skipped
     transcription_text = Column(Text)
     transcription_language = Column(String(10))
     transcription_confidence = Column(Float)
+    transcription_model = Column(String(100))  # Model used for transcription
     transcribed_at = Column(DateTime(timezone=True))
 
-    # LLM Processing
-    corrected_text = Column(Text)  # LLM-corrected transcript
-    summary = Column(Text)  # Concise summary for support agents
+    # AI Processing (voicemail only)
+    corrected_text = Column(Text)
+    summary = Column(Text)  # Summary in original language
+    summary_en = Column(Text)  # English translation of summary
     summary_model = Column(String(100))
     summarized_at = Column(DateTime(timezone=True))
 
-    # AI Classification
+    # AI Classification (voicemail only)
     sentiment = Column(String(20))  # positive, negative, neutral
     emotion = Column(String(20))  # angry, frustrated, happy, confused, calm, urgent
     category = Column(String(30))  # sales_inquiry, existing_order, new_inquiry, complaint, general
-    is_urgent = Column(Boolean, default=False)
+    priority = Column(String(10), default="default")  # low, default, high
 
-    # Email/Helpdesk
+    # Helpdesk forwarding (voicemail only)
     email_status = Column(String(20), default="pending")  # pending, sent, failed, skipped
     email_sent_at = Column(DateTime(timezone=True))
 
     # Metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# Alias for backwards compatibility during transition
+Voicemail = Call

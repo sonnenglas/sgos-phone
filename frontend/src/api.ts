@@ -1,4 +1,4 @@
-import type { Voicemail, SyncResponse, TranscribeResponse, SummarizeResponse, HealthResponse } from './types';
+import type { Voicemail, SyncResponse, TranscribeResponse, SummarizeResponse, HealthResponse, NumbersResponse } from './types';
 
 const API_BASE = '';
 
@@ -19,6 +19,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // Auth
+  me: () => request<{ email: string | null }>('/me'),
+
   // Health
   health: () => request<HealthResponse>('/health'),
 
@@ -38,6 +41,8 @@ export const api = {
   deleteVoicemail: (id: number) => request<{ deleted: number }>(`/voicemails/${id}`, { method: 'DELETE' }),
 
   getAudioUrl: (id: number) => `${API_BASE}/voicemails/${id}/audio`,
+
+  getEmailPreviewUrl: (id: number) => `${API_BASE}/voicemails/${id}/email-preview`,
 
   // Sync
   sync: (days: number = 30) => request<SyncResponse>(`/sync?days=${days}`, { method: 'POST' }),
@@ -73,4 +78,22 @@ export const api = {
   ),
 
   syncNow: () => request<{ status: string; result: unknown }>('/settings/sync-now', { method: 'POST' }),
+
+  reprocess: (id: number) => request<{ voicemail_id: number; steps: string[] }>(
+    `/settings/reprocess/${id}`,
+    { method: 'POST' }
+  ),
+
+  sendEmail: (id: number) => request<{ status: string; to: string; voicemail_id: number }>(
+    `/settings/send-email/${id}`,
+    { method: 'POST' }
+  ),
+
+  setEmailCutoffNow: () => request<{ cutoff_date: string; skipped_count: number; message: string }>(
+    '/settings/email-cutoff-now',
+    { method: 'POST' }
+  ),
+
+  // Numbers
+  listNumbers: (refresh: boolean = false) => request<NumbersResponse>(`/numbers${refresh ? '?refresh=true' : ''}`),
 };

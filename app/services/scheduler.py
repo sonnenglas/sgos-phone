@@ -14,7 +14,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.database import SessionLocal
-from app.models import Setting, Voicemail
+from app.models import Setting, Call
 from app.services.placetel import PlacetelService
 from app.services.elevenlabs import ElevenLabsService
 from app.services.openrouter import OpenRouterService
@@ -51,22 +51,49 @@ def set_setting(key: str, value: str):
         db.close()
 
 
+def calculate_sync_days() -> int:
+    """Calculate how many days back to sync based on last_sync_at.
+
+    Returns days since last sync + 1 day buffer, capped at 30 days max.
+    If never synced, returns 30 days.
+    """
+    last_sync = get_setting("last_sync_at", "")
+
+    if not last_sync:
+        logger.info("No previous sync found, fetching last 30 days")
+        return 30
+
+    try:
+        last_sync_dt = datetime.fromisoformat(last_sync.replace("Z", "+00:00"))
+        now = datetime.now(timezone.utc)
+        days_since = (now - last_sync_dt).days + 1  # +1 day buffer
+
+        # Clamp between 1 and 30 days
+        days = max(1, min(days_since, 30))
+        logger.info(f"Last sync: {last_sync_dt.isoformat()}, fetching last {days} days")
+        return days
+    except Exception as e:
+        logger.warning(f"Failed to parse last_sync_at '{last_sync}': {e}, using 7 days")
+        return 7
+
+
 async def run_sync_job() -> dict:
     """Fetch new voicemails from Placetel."""
     logger.info("Starting sync job...")
     db = SessionLocal()
     try:
         placetel = PlacetelService()
-        voicemails = await placetel.fetch_voicemails(days=7)  # Last 7 days
+        days = calculate_sync_days()
+        voicemails = await placetel.fetch_voicemails(days=days)
 
         new_count = 0
         downloaded_count = 0
 
         for vm_data in voicemails:
             external_id = str(vm_data["id"])
-            existing = db.query(Voicemail).filter(
-                Voicemail.external_id == external_id,
-                Voicemail.provider == "placetel"
+            existing = db.query(Call).filter(
+                Call.external_id == external_id,
+                Call.provider == "placetel"
             ).first()
 
             if existing:
@@ -83,14 +110,16 @@ async def run_sync_job() -> dict:
                 initial_status = "pending"
                 initial_text = None
 
-            voicemail = Voicemail(
+            call = Call(
                 external_id=external_id,
                 provider="placetel",
+                direction="in",
+                status="voicemail",
                 from_number=vm_data.get("from_number"),
                 to_number=to_number.get("number") if isinstance(to_number, dict) else to_number,
                 to_number_name=to_number.get("name") if isinstance(to_number, dict) else None,
                 duration=duration,
-                received_at=datetime.fromisoformat(vm_data["received_at"].replace("Z", "+00:00"))
+                started_at=datetime.fromisoformat(vm_data["received_at"].replace("Z", "+00:00"))
                 if vm_data.get("received_at") else None,
                 file_url=vm_data.get("file_url"),
                 unread=vm_data.get("unread", True),
@@ -98,14 +127,14 @@ async def run_sync_job() -> dict:
                 transcription_text=initial_text,
                 email_status="pending" if initial_status == "pending" else "skipped",
             )
-            db.add(voicemail)
+            db.add(call)
             new_count += 1
 
             # Download audio if worth processing
             if duration >= MIN_DURATION_SECONDS and vm_data.get("file_url"):
                 try:
                     local_path = await placetel.download_voicemail(external_id, vm_data["file_url"])
-                    voicemail.local_file_path = local_path
+                    call.local_file_path = local_path
                     downloaded_count += 1
                 except Exception as e:
                     logger.error(f"Failed to download voicemail {external_id}: {e}")
@@ -134,10 +163,11 @@ async def run_transcribe_job() -> dict:
     db = SessionLocal()
     try:
         pending = (
-            db.query(Voicemail)
-            .filter(Voicemail.transcription_status == "pending")
-            .filter(Voicemail.local_file_path.isnot(None))
-            .filter(Voicemail.duration >= MIN_DURATION_SECONDS)
+            db.query(Call)
+            .filter(Call.status == "voicemail")
+            .filter(Call.transcription_status == "pending")
+            .filter(Call.local_file_path.isnot(None))
+            .filter(Call.duration >= MIN_DURATION_SECONDS)
             .limit(10)
             .all()
         )
@@ -149,24 +179,25 @@ async def run_transcribe_job() -> dict:
         transcribed = 0
         failed = 0
 
-        for voicemail in pending:
+        for call in pending:
             try:
-                voicemail.transcription_status = "processing"
+                call.transcription_status = "processing"
                 db.commit()
 
-                result = await elevenlabs.transcribe(voicemail.local_file_path)
+                result = await elevenlabs.transcribe(call.local_file_path)
 
-                voicemail.transcription_text = result.text
-                voicemail.transcription_language = result.language
-                voicemail.transcription_confidence = result.confidence
-                voicemail.transcription_status = "completed"
-                voicemail.transcribed_at = datetime.now(timezone.utc)
+                call.transcription_text = result.text
+                call.transcription_language = result.language
+                call.transcription_confidence = result.confidence
+                call.transcription_model = result.model
+                call.transcription_status = "completed"
+                call.transcribed_at = datetime.now(timezone.utc)
                 transcribed += 1
-                logger.info(f"Transcribed voicemail {voicemail.id}")
+                logger.info(f"Transcribed voicemail {call.id}")
 
             except Exception as e:
-                logger.error(f"Failed to transcribe voicemail {voicemail.id}: {e}")
-                voicemail.transcription_status = "failed"
+                logger.error(f"Failed to transcribe voicemail {call.id}: {e}")
+                call.transcription_status = "failed"
                 failed += 1
 
         db.commit()
@@ -188,11 +219,12 @@ async def run_summarize_job() -> dict:
         skip_texts = ["[No audio]", "[Too short]", "[No audio content]"]
 
         pending = (
-            db.query(Voicemail)
-            .filter(Voicemail.transcription_status == "completed")
-            .filter(Voicemail.transcription_text.isnot(None))
-            .filter(Voicemail.summary.is_(None))
-            .filter(Voicemail.transcription_text.notin_(skip_texts))
+            db.query(Call)
+            .filter(Call.status == "voicemail")
+            .filter(Call.transcription_status == "completed")
+            .filter(Call.transcription_text.isnot(None))
+            .filter(Call.summary.is_(None))
+            .filter(Call.transcription_text.notin_(skip_texts))
             .limit(10)
             .all()
         )
@@ -204,32 +236,33 @@ async def run_summarize_job() -> dict:
         summarized = 0
         failed = 0
 
-        for voicemail in pending:
+        for call in pending:
             # Skip very short transcripts
-            if len(voicemail.transcription_text.strip()) < 20:
-                voicemail.summary = "[No meaningful content]"
-                voicemail.summarized_at = datetime.now(timezone.utc)
+            if len(call.transcription_text.strip()) < 20:
+                call.summary = "[No meaningful content]"
+                call.summarized_at = datetime.now(timezone.utc)
                 continue
 
             try:
                 result = await openrouter.process_transcript(
-                    transcript=voicemail.transcription_text,
-                    language=voicemail.transcription_language or "de",
+                    transcript=call.transcription_text,
+                    language=call.transcription_language or "de",
                 )
 
-                voicemail.corrected_text = result.corrected_text
-                voicemail.summary = result.summary
-                voicemail.summary_model = openrouter.model
-                voicemail.summarized_at = datetime.now(timezone.utc)
-                voicemail.sentiment = result.sentiment
-                voicemail.emotion = result.emotion
-                voicemail.category = result.category
-                voicemail.is_urgent = result.is_urgent
+                call.corrected_text = result.corrected_text
+                call.summary = result.summary
+                call.summary_en = result.summary_en
+                call.summary_model = openrouter.model
+                call.summarized_at = datetime.now(timezone.utc)
+                call.sentiment = result.sentiment
+                call.emotion = result.emotion
+                call.category = result.category
+                call.priority = result.priority
                 summarized += 1
-                logger.info(f"Summarized voicemail {voicemail.id} (sentiment={result.sentiment}, urgent={result.is_urgent})")
+                logger.info(f"Summarized voicemail {call.id} (sentiment={result.sentiment}, urgent={result.priority})")
 
             except Exception as e:
-                logger.error(f"Failed to summarize voicemail {voicemail.id}: {e}")
+                logger.error(f"Failed to summarize voicemail {call.id}: {e}")
                 failed += 1
 
         db.commit()
@@ -241,40 +274,78 @@ async def run_summarize_job() -> dict:
 
 
 async def run_email_job() -> dict:
-    """Send voicemails to helpdesk (placeholder for custom API)."""
+    """Send voicemail notification emails via Postmark."""
+    from app.config import get_settings
+    from app.services.email import PostmarkEmailService, voicemail_to_email_data
+
     if get_setting("auto_email", "false") != "true":
         return {"skipped": "auto_email disabled"}
 
-    api_url = get_setting("helpdesk_api_url", "")
-    if not api_url:
-        return {"skipped": "helpdesk_api_url not configured"}
+    to_email = get_setting("notification_email", "")
+    if not to_email:
+        return {"skipped": "notification_email not configured"}
+
+    settings = get_settings()
+    if not settings.postmark_api_token or not settings.email_from:
+        return {"skipped": "Postmark not configured (missing token or from email)"}
+
+    # Check cutoff date - only email voicemails received after this date
+    email_only_after = get_setting("email_only_after", "")
+    cutoff_date = None
+    if email_only_after:
+        try:
+            cutoff_date = datetime.fromisoformat(email_only_after.replace("Z", "+00:00"))
+        except Exception:
+            pass
 
     logger.info("Starting email job...")
     db = SessionLocal()
     try:
-        pending = (
-            db.query(Voicemail)
-            .filter(Voicemail.email_status == "pending")
-            .filter(Voicemail.summary.isnot(None))
-            .limit(10)
-            .all()
+        query = (
+            db.query(Call)
+            .filter(Call.email_status == "pending")
+            .filter(Call.summary.isnot(None))
         )
+
+        # Apply cutoff date filter if set
+        if cutoff_date:
+            query = query.filter(Call.started_at >= cutoff_date)
+            logger.info(f"Email cutoff date: {cutoff_date.isoformat()}")
+
+        pending = query.limit(10).all()
 
         if not pending:
             return {"sent": 0}
 
-        # TODO: Implement actual API call when details are provided
-        # For now, just mark as sent for testing
+        email_service = PostmarkEmailService(
+            api_token=settings.postmark_api_token,
+            from_email=settings.email_from,
+            from_name=settings.email_from_name,
+        )
+
         sent = 0
-        for voicemail in pending:
-            # Placeholder: would call helpdesk API here
-            logger.info(f"Would send voicemail {voicemail.id} to helpdesk")
-            # voicemail.email_status = "sent"
-            # voicemail.email_sent_at = datetime.now(timezone.utc)
-            # sent += 1
+        failed = 0
+
+        for call in pending:
+            email_data = voicemail_to_email_data(call, settings.base_url)
+
+            success = await email_service.send(
+                to_email=to_email,
+                data=email_data,
+                attach_audio=False,  # Link only, no attachment
+            )
+
+            if success:
+                call.email_status = "sent"
+                call.email_sent_at = datetime.now(timezone.utc)
+                sent += 1
+            else:
+                call.email_status = "failed"
+                failed += 1
 
         db.commit()
-        return {"sent": sent, "pending": len(pending)}
+        logger.info(f"Email job complete: {sent} sent, {failed} failed")
+        return {"sent": sent, "failed": failed}
 
     finally:
         db.close()
