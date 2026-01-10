@@ -33,7 +33,7 @@ def upgrade() -> None:
         ('auto_transcribe', 'true'),
         ('auto_summarize', 'true'),
         ('auto_email', 'false'),
-        ('notification_email', ''),
+        ('notification_email', 'hilfe@sonnenglas.net'),
         ('last_sync_at', ''),
         ('email_only_after', '')
     """)
