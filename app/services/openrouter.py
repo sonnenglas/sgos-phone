@@ -8,10 +8,14 @@ from app.config import get_settings
 class SummaryResult:
     corrected_text: str
     summary: str
+    sentiment: str  # positive, negative, neutral
+    emotion: str  # angry, frustrated, happy, confused, calm, urgent
+    category: str  # sales_inquiry, existing_order, new_inquiry, complaint, general
+    is_urgent: bool
 
 
 class OpenRouterService:
-    """LLM-powered transcript correction and summarization via OpenRouter."""
+    """LLM-powered transcript correction, summarization, and classification via OpenRouter."""
 
     def __init__(self):
         self.settings = get_settings()
@@ -24,6 +28,7 @@ class OpenRouterService:
         Process a voicemail transcript:
         1. Correct obvious transcription errors
         2. Generate a concise summary for customer support
+        3. Classify sentiment, emotion, category, and urgency
         """
         if not self.api_key:
             raise ValueError("OpenRouter API key not configured")
@@ -31,37 +36,52 @@ class OpenRouterService:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://placetel-voicemail.local",
-            "X-Title": "Placetel Voicemail Transcription",
+            "HTTP-Referer": "https://phone.sgos.local",
+            "X-Title": "SGOS Phone - Voicemail Processing",
         }
 
         system_prompt = """You are an assistant that processes voicemail transcriptions for a customer support team.
 
 Your task is to:
-1. CORRECT the transcript: Fix obvious speech-to-text errors (wrong words, missing punctuation, unclear sentences). Keep the meaning intact. If the transcript seems mostly correct, make minimal changes.
+1. CORRECT the transcript: Fix obvious speech-to-text errors (wrong words, missing punctuation, unclear sentences). Keep the meaning intact.
 2. SUMMARIZE for support: Create a brief, actionable summary (2-3 sentences max) that tells a support agent:
    - Who is calling (name if mentioned)
    - What they want/need
    - Any callback number or urgency
+3. CLASSIFY the voicemail:
+   - sentiment: "positive", "negative", or "neutral"
+   - emotion: "angry", "frustrated", "happy", "confused", "calm", or "urgent"
+   - category: One of:
+     * "sales_inquiry" - Questions about products/services, pricing, availability
+     * "existing_order" - Questions about an existing order, delivery, tracking
+     * "new_inquiry" - New customer, first contact, general interest
+     * "complaint" - Unhappy customer, issues, problems
+     * "general" - Other/general questions
+   - is_urgent: true if the caller needs immediate attention (angry, time-sensitive, emergency)
 
 Output format (JSON):
 {
   "corrected_text": "The corrected transcript text...",
-  "summary": "Brief summary for support agent..."
+  "summary": "Brief summary for support agent...",
+  "sentiment": "positive|negative|neutral",
+  "emotion": "angry|frustrated|happy|confused|calm|urgent",
+  "category": "sales_inquiry|existing_order|new_inquiry|complaint|general",
+  "is_urgent": true|false
 }
 
 Important:
 - Preserve the caller's intent and key details
 - The corrected text should be readable and professional
 - The summary should be concise and actionable
-- If the transcript is very short or empty, note that in the summary"""
+- Be conservative with is_urgent - only mark true for genuinely urgent situations
+- If the transcript is very short or empty, use neutral/calm/general as defaults"""
 
         user_prompt = f"""Process this voicemail transcript (language: {language}):
 
 TRANSCRIPT:
 {transcript}
 
-Return JSON with corrected_text and summary."""
+Return JSON with corrected_text, summary, sentiment, emotion, category, and is_urgent."""
 
         payload = {
             "model": self.model,
@@ -93,10 +113,18 @@ Return JSON with corrected_text and summary."""
                 return SummaryResult(
                     corrected_text=parsed.get("corrected_text", transcript),
                     summary=parsed.get("summary", "No summary available"),
+                    sentiment=parsed.get("sentiment", "neutral"),
+                    emotion=parsed.get("emotion", "calm"),
+                    category=parsed.get("category", "general"),
+                    is_urgent=parsed.get("is_urgent", False),
                 )
             except json.JSONDecodeError:
                 # Fallback if JSON parsing fails
                 return SummaryResult(
                     corrected_text=transcript,
                     summary=content[:500] if content else "Processing failed",
+                    sentiment="neutral",
+                    emotion="calm",
+                    category="general",
+                    is_urgent=False,
                 )

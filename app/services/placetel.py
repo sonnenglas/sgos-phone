@@ -41,14 +41,14 @@ class PlacetelService:
 
         return all_voicemails
 
-    async def download_voicemail(self, voicemail_id: int, file_url: str, storage_path: Optional[str] = None) -> str:
+    async def download_voicemail(self, external_id: str, file_url: str, storage_path: Optional[str] = None) -> str:
         """Download a voicemail MP3 file and return the local path."""
         if storage_path is None:
             storage_path = self.settings.voicemail_storage_path
 
         Path(storage_path).mkdir(parents=True, exist_ok=True)
 
-        filename = f"voicemail_{voicemail_id}.mp3"
+        filename = f"voicemail_{external_id}.mp3"
         local_path = Path(storage_path) / filename
 
         async with httpx.AsyncClient() as client:

@@ -1,7 +1,8 @@
 import os
 from pathlib import Path
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -9,14 +10,34 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.database import get_db
-from app.routers import voicemails, sync
+from app.routers import voicemails, sync, settings
 from app.schemas import HealthResponse
-from app.models import Voicemail
+from app.models import Voicemail, Setting
+
+
+# Global scheduler reference (set during startup)
+scheduler = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown events."""
+    global scheduler
+    # Import here to avoid circular imports
+    from app.services.scheduler import create_scheduler
+
+    scheduler = await create_scheduler()
+    yield
+    # Shutdown
+    if scheduler:
+        scheduler.shutdown()
+
 
 app = FastAPI(
-    title="Placetel Voicemail Transcription API",
-    description="Fetch voicemails from Placetel, transcribe with ElevenLabs Scribe v2, and store in PostgreSQL.",
+    title="Phone API",
+    description="Internal phone management system - voicemail processing with automatic transcription and summarization.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -30,6 +51,15 @@ app.add_middleware(
 # API routes
 app.include_router(voicemails.router)
 app.include_router(sync.router)
+app.include_router(settings.router)
+
+
+def get_scheduler_status() -> str:
+    """Get current scheduler status."""
+    global scheduler
+    if scheduler is None:
+        return "not_started"
+    return "running" if scheduler.running else "stopped"
 
 
 @app.get("/health", response_model=HealthResponse, tags=["health"])
@@ -43,10 +73,16 @@ def health_check(db: Session = Depends(get_db)):
 
     voicemails_count = db.query(Voicemail).count()
 
+    # Get last sync time from settings
+    last_sync = db.query(Setting).filter(Setting.key == "last_sync_at").first()
+    last_sync_at = last_sync.value if last_sync and last_sync.value else None
+
     return HealthResponse(
         status="healthy" if db_status == "healthy" else "unhealthy",
         database=db_status,
         voicemails_count=voicemails_count,
+        scheduler=get_scheduler_status(),
+        last_sync_at=last_sync_at,
     )
 
 

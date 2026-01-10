@@ -5,6 +5,8 @@ from typing import Optional
 
 class VoicemailBase(BaseModel):
     id: int
+    external_id: str
+    provider: str = "placetel"
     from_number: Optional[str] = None
     to_number: Optional[str] = None
     to_number_name: Optional[str] = None
@@ -24,11 +26,35 @@ class VoicemailResponse(VoicemailBase):
     summary: Optional[str] = None
     summary_model: Optional[str] = None
     summarized_at: Optional[datetime] = None
+    sentiment: Optional[str] = None
+    emotion: Optional[str] = None
+    category: Optional[str] = None
+    is_urgent: bool = False
+    email_status: str = "pending"
+    email_sent_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+# Settings schemas
+class SettingResponse(BaseModel):
+    key: str
+    value: str
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SettingUpdate(BaseModel):
+    value: str
+
+
+class SettingsResponse(BaseModel):
+    settings: dict[str, str]
 
 
 class SyncResponse(BaseModel):
@@ -54,3 +80,5 @@ class HealthResponse(BaseModel):
     status: str
     database: str
     voicemails_count: int
+    scheduler: str
+    last_sync_at: Optional[str] = None

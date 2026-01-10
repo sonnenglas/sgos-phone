@@ -177,6 +177,47 @@ export default function VoicemailPage() {
         </div>
       )}
 
+      {/* Classification */}
+      {(voicemail.sentiment || voicemail.category || voicemail.is_urgent) && (
+        <div className="mb-8">
+          <h2 className="text-xs font-medium text-secondary uppercase tracking-wide mb-3">
+            Classification
+          </h2>
+          <div className="flex flex-wrap gap-4 p-4 border border-border">
+            {voicemail.is_urgent && (
+              <div>
+                <span className="text-xs text-secondary block mb-1">Priority</span>
+                <Badge variant="urgent">Urgent</Badge>
+              </div>
+            )}
+            {voicemail.sentiment && (
+              <div>
+                <span className="text-xs text-secondary block mb-1">Sentiment</span>
+                <Badge variant={voicemail.sentiment === 'negative' ? 'negative' : voicemail.sentiment === 'positive' ? 'positive' : 'default'}>
+                  {voicemail.sentiment.charAt(0).toUpperCase() + voicemail.sentiment.slice(1)}
+                </Badge>
+              </div>
+            )}
+            {voicemail.emotion && (
+              <div>
+                <span className="text-xs text-secondary block mb-1">Emotion</span>
+                <Badge variant="default">
+                  {voicemail.emotion.charAt(0).toUpperCase() + voicemail.emotion.slice(1)}
+                </Badge>
+              </div>
+            )}
+            {voicemail.category && (
+              <div>
+                <span className="text-xs text-secondary block mb-1">Category</span>
+                <Badge variant="info">
+                  {voicemail.category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                </Badge>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Transcript */}
       {voicemail.transcription_text && voicemail.transcription_text !== '[No audio content]' && (
         <div className="mb-8">

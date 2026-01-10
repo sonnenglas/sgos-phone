@@ -1,5 +1,5 @@
 services:
-  app:
+  phone:
     build: .
     ports:
       - "9000:8000"
@@ -15,19 +15,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
     restart: unless-stopped
 
   db:
     image: postgres:18
     environment:
-      POSTGRES_USER: placetel
-      POSTGRES_PASSWORD: placetel
-      POSTGRES_DB: placetel
+      POSTGRES_USER: phone
+      POSTGRES_PASSWORD: phone
+      POSTGRES_DB: phone
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U placetel"]
+      test: ["CMD-SHELL", "pg_isready -U phone"]
       interval: 5s
       timeout: 5s
       retries: 5

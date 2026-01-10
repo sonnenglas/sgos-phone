@@ -31,8 +31,11 @@ async def sync_voicemails(
     downloaded_count = 0
 
     for vm_data in voicemails:
-        vm_id = vm_data["id"]
-        existing = db.query(Voicemail).filter(Voicemail.id == vm_id).first()
+        external_id = str(vm_data["id"])
+        existing = db.query(Voicemail).filter(
+            Voicemail.external_id == external_id,
+            Voicemail.provider == "placetel"
+        ).first()
 
         to_number = vm_data.get("to_number", {})
         duration = vm_data.get("duration") or 0
@@ -53,7 +56,8 @@ async def sync_voicemails(
 
             # Create new record
             voicemail = Voicemail(
-                id=vm_id,
+                external_id=external_id,
+                provider="placetel",
                 from_number=vm_data.get("from_number"),
                 to_number=to_number.get("number") if isinstance(to_number, dict) else to_number,
                 to_number_name=to_number.get("name") if isinstance(to_number, dict) else None,
@@ -72,11 +76,11 @@ async def sync_voicemails(
             # Only download if worth processing
             if duration >= MIN_DURATION_SECONDS:
                 try:
-                    local_path = await placetel.download_voicemail(vm_id, vm_data["file_url"])
+                    local_path = await placetel.download_voicemail(external_id, vm_data["file_url"])
                     voicemail.local_file_path = local_path
                     downloaded_count += 1
                 except Exception as e:
-                    print(f"Failed to download voicemail {vm_id}: {e}")
+                    print(f"Failed to download voicemail {external_id}: {e}")
 
     db.commit()
 
@@ -221,6 +225,10 @@ async def summarize_voicemail(voicemail_id: int, db: Session = Depends(get_db)):
         voicemail.summary = result.summary
         voicemail.summary_model = openrouter.model
         voicemail.summarized_at = datetime.now(timezone.utc)
+        voicemail.sentiment = result.sentiment
+        voicemail.emotion = result.emotion
+        voicemail.category = result.category
+        voicemail.is_urgent = result.is_urgent
         db.commit()
 
         return {
@@ -229,6 +237,10 @@ async def summarize_voicemail(voicemail_id: int, db: Session = Depends(get_db)):
             "original_text": voicemail.transcription_text,
             "corrected_text": result.corrected_text,
             "summary": result.summary,
+            "sentiment": result.sentiment,
+            "emotion": result.emotion,
+            "category": result.category,
+            "is_urgent": result.is_urgent,
             "model": openrouter.model,
         }
     except Exception as e:
@@ -278,6 +290,10 @@ async def summarize_pending(
             voicemail.summary = result.summary
             voicemail.summary_model = openrouter.model
             voicemail.summarized_at = datetime.now(timezone.utc)
+            voicemail.sentiment = result.sentiment
+            voicemail.emotion = result.emotion
+            voicemail.category = result.category
+            voicemail.is_urgent = result.is_urgent
             summarized += 1
         except Exception as e:
             print(f"Failed to summarize voicemail {voicemail.id}: {e}")

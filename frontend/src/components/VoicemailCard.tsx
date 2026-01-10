@@ -57,6 +57,41 @@ function getStatusBadge(voicemail: Voicemail) {
   return <Badge variant="default">Pending</Badge>;
 }
 
+function getCategoryLabel(category: string | null): string {
+  const labels: Record<string, string> = {
+    sales_inquiry: 'Sales',
+    existing_order: 'Order',
+    new_inquiry: 'New',
+    complaint: 'Complaint',
+    general: 'General',
+  };
+  return labels[category || ''] || '';
+}
+
+function getClassificationBadges(voicemail: Voicemail) {
+  const badges: JSX.Element[] = [];
+
+  if (voicemail.is_urgent) {
+    badges.push(<Badge key="urgent" variant="urgent" size="sm">Urgent</Badge>);
+  }
+
+  if (voicemail.sentiment === 'negative') {
+    badges.push(<Badge key="sentiment" variant="negative" size="sm">Negative</Badge>);
+  } else if (voicemail.sentiment === 'positive') {
+    badges.push(<Badge key="sentiment" variant="positive" size="sm">Positive</Badge>);
+  }
+
+  if (voicemail.category && voicemail.category !== 'general') {
+    badges.push(
+      <Badge key="category" variant="info" size="sm">
+        {getCategoryLabel(voicemail.category)}
+      </Badge>
+    );
+  }
+
+  return badges;
+}
+
 function getPreviewText(voicemail: Voicemail): { text: string; italic: boolean } {
   if (isSkipped(voicemail)) {
     const duration = voicemail.duration || 0;
@@ -89,11 +124,12 @@ export default function VoicemailCard({ voicemail }: VoicemailCardProps) {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className={`font-medium truncate ${skipped ? 'text-secondary' : ''}`}>
               {voicemail.from_number || 'Unknown'}
             </span>
             {getStatusBadge(voicemail)}
+            {getClassificationBadges(voicemail)}
           </div>
 
           <div className="text-sm text-secondary mb-2">

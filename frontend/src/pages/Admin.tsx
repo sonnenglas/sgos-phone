@@ -3,12 +3,61 @@ import { Link } from 'react-router-dom';
 import { api } from '../api';
 import type { HealthResponse } from '../types';
 
+interface Settings {
+  sync_interval_minutes: string;
+  auto_transcribe: string;
+  auto_summarize: string;
+  auto_email: string;
+  helpdesk_api_url: string;
+  last_sync_at: string;
+}
+
 export default function Admin() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    api.health().then(setHealth).catch(console.error);
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    try {
+      const [healthData, settingsData] = await Promise.all([
+        api.health(),
+        api.getSettings(),
+      ]);
+      setHealth(healthData);
+      setSettings(settingsData.settings as unknown as Settings);
+    } catch (error) {
+      console.error('Failed to load data:', error);
+    }
+  };
+
+  const updateSetting = async (key: string, value: string) => {
+    setSaving(true);
+    try {
+      await api.updateSetting(key, value);
+      setSettings(prev => prev ? { ...prev, [key]: value } : null);
+    } catch (error) {
+      console.error('Failed to update setting:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    setSyncing(true);
+    try {
+      await api.syncNow();
+      await loadData();
+    } catch (error) {
+      console.error('Failed to sync:', error);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   return (
     <div className="animate-fade-in">
@@ -16,14 +65,14 @@ export default function Admin() {
         &larr; Back to messages
       </Link>
 
-      <h1 className="text-3xl font-semibold tracking-tight mb-8">Admin</h1>
+      <h1 className="text-3xl font-semibold tracking-tight mb-8">Settings</h1>
 
       {/* System Status */}
       <section className="mb-12">
         <h2 className="text-xs font-medium text-secondary uppercase tracking-wide mb-4">System Status</h2>
         <div className="border border-border p-4">
           {health ? (
-            <div className="grid grid-cols-3 gap-8 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-6 text-sm">
               <div>
                 <span className="text-secondary">Status</span>
                 <p className="mt-1 font-medium">{health.status}</p>
@@ -33,8 +82,18 @@ export default function Admin() {
                 <p className="mt-1 font-medium">{health.database}</p>
               </div>
               <div>
+                <span className="text-secondary">Scheduler</span>
+                <p className="mt-1 font-medium">{health.scheduler}</p>
+              </div>
+              <div>
                 <span className="text-secondary">Voicemails</span>
                 <p className="mt-1 font-medium">{health.voicemails_count}</p>
+              </div>
+              <div>
+                <span className="text-secondary">Last Sync</span>
+                <p className="mt-1 font-medium">
+                  {health.last_sync_at ? new Date(health.last_sync_at).toLocaleString() : 'Never'}
+                </p>
               </div>
             </div>
           ) : (
@@ -43,168 +102,100 @@ export default function Admin() {
         </div>
       </section>
 
-      {/* Data Model */}
+      {/* Settings */}
       <section className="mb-12">
-        <h2 className="text-xs font-medium text-secondary uppercase tracking-wide mb-4">Data Model</h2>
-
-        <div className="border border-border p-6">
-          {/* Entity Relationship Diagram (ASCII) */}
-          <pre className="text-xs font-mono mb-6 overflow-x-auto">
-{`┌─────────────────────────────────────────────────────────────────┐
-│                          VOICEMAIL                              │
-├─────────────────────────────────────────────────────────────────┤
-│  id                 BIGINT        PK    Placetel voicemail ID   │
-├─────────────────────────────────────────────────────────────────┤
-│  from_number        VARCHAR(50)         Caller phone number     │
-│  to_number          VARCHAR(50)         Destination number      │
-│  to_number_name     VARCHAR(255)        Destination name        │
-│  duration           INTEGER             Duration in seconds     │
-│  received_at        TIMESTAMPTZ         When call was received  │
-├─────────────────────────────────────────────────────────────────┤
-│  file_url           TEXT                Placetel URL (expires)  │
-│  local_file_path    VARCHAR(500)        Local MP3 path          │
-│  unread             BOOLEAN             Read status             │
-├─────────────────────────────────────────────────────────────────┤
-│  transcription_status  VARCHAR(20)      pending|processing|     │
-│                                         completed|failed|skipped│
-│  transcription_text    TEXT             Raw transcript          │
-│  transcription_language VARCHAR(10)     ISO language code       │
-│  transcription_confidence FLOAT         0.0 - 1.0               │
-│  transcribed_at        TIMESTAMPTZ      When transcribed        │
-├─────────────────────────────────────────────────────────────────┤
-│  corrected_text     TEXT                LLM-corrected text      │
-│  summary            TEXT                Concise summary         │
-│  summary_model      VARCHAR(100)        Model used              │
-│  summarized_at      TIMESTAMPTZ         When summarized         │
-├─────────────────────────────────────────────────────────────────┤
-│  created_at         TIMESTAMPTZ         Record created          │
-│  updated_at         TIMESTAMPTZ         Record updated          │
-└─────────────────────────────────────────────────────────────────┘`}
-          </pre>
-        </div>
-      </section>
-
-      {/* Field Reference */}
-      <section className="mb-12">
-        <h2 className="text-xs font-medium text-secondary uppercase tracking-wide mb-4">Field Reference</h2>
-
+        <h2 className="text-xs font-medium text-secondary uppercase tracking-wide mb-4">Processing Settings</h2>
         <div className="border border-border divide-y divide-border">
-          <FieldRow
-            name="id"
-            type="BIGINT"
-            description="Primary key from Placetel API. Unique identifier for each voicemail."
-          />
-          <FieldRow
-            name="from_number"
-            type="VARCHAR(50)"
-            description="The caller's phone number in international format."
-          />
-          <FieldRow
-            name="to_number"
-            type="VARCHAR(50)"
-            description="The destination phone number that received the call."
-          />
-          <FieldRow
-            name="to_number_name"
-            type="VARCHAR(255)"
-            description="Human-readable name for the destination (e.g., 'Kundenservice Hotline DE')."
-          />
-          <FieldRow
-            name="duration"
-            type="INTEGER"
-            description="Length of the voicemail in seconds. Messages < 2s are auto-skipped."
-          />
-          <FieldRow
-            name="received_at"
-            type="TIMESTAMPTZ"
-            description="When the voicemail was received, with timezone."
-          />
-          <FieldRow
-            name="file_url"
-            type="TEXT"
-            description="Signed Google Cloud Storage URL from Placetel. Expires after ~1 hour."
-          />
-          <FieldRow
-            name="local_file_path"
-            type="VARCHAR(500)"
-            description="Path to downloaded MP3 file on local storage (/app/data/voicemails/)."
-          />
-          <FieldRow
-            name="transcription_status"
-            type="VARCHAR(20)"
-            description="One of: pending (awaiting), processing (in progress), completed (done), failed (error), skipped (too short)."
-          />
-          <FieldRow
-            name="transcription_text"
-            type="TEXT"
-            description="Raw transcript from ElevenLabs Scribe v2. May contain filler words and errors."
-          />
-          <FieldRow
-            name="transcription_language"
-            type="VARCHAR(10)"
-            description="Detected language code (e.g., 'deu' for German, 'eng' for English)."
-          />
-          <FieldRow
-            name="transcription_confidence"
-            type="FLOAT"
-            description="Language detection confidence from 0.0 to 1.0 (e.g., 0.998 = 99.8%)."
-          />
-          <FieldRow
-            name="corrected_text"
-            type="TEXT"
-            description="LLM-corrected transcript with filler words removed and errors fixed."
-          />
-          <FieldRow
-            name="summary"
-            type="TEXT"
-            description="Concise 2-3 sentence summary for customer support agents."
-          />
-          <FieldRow
-            name="summary_model"
-            type="VARCHAR(100)"
-            description="OpenRouter model used for summarization (e.g., 'google/gemini-3-pro-preview')."
-          />
+          {/* Sync Interval */}
+          <div className="p-4 flex items-center justify-between">
+            <div>
+              <p className="font-medium">Sync Interval</p>
+              <p className="text-sm text-secondary">How often to fetch new voicemails from Placetel</p>
+            </div>
+            <select
+              value={settings?.sync_interval_minutes || '15'}
+              onChange={(e) => updateSetting('sync_interval_minutes', e.target.value)}
+              disabled={saving}
+              className="border border-border px-3 py-2 text-sm"
+            >
+              <option value="5">Every 5 minutes</option>
+              <option value="10">Every 10 minutes</option>
+              <option value="15">Every 15 minutes</option>
+              <option value="30">Every 30 minutes</option>
+              <option value="60">Every hour</option>
+            </select>
+          </div>
+
+          {/* Auto Transcribe */}
+          <div className="p-4 flex items-center justify-between">
+            <div>
+              <p className="font-medium">Auto Transcribe</p>
+              <p className="text-sm text-secondary">Automatically transcribe new voicemails</p>
+            </div>
+            <ToggleSwitch
+              enabled={settings?.auto_transcribe === 'true'}
+              onChange={(enabled) => updateSetting('auto_transcribe', enabled ? 'true' : 'false')}
+              disabled={saving}
+            />
+          </div>
+
+          {/* Auto Summarize */}
+          <div className="p-4 flex items-center justify-between">
+            <div>
+              <p className="font-medium">Auto Summarize</p>
+              <p className="text-sm text-secondary">Automatically generate summaries after transcription</p>
+            </div>
+            <ToggleSwitch
+              enabled={settings?.auto_summarize === 'true'}
+              onChange={(enabled) => updateSetting('auto_summarize', enabled ? 'true' : 'false')}
+              disabled={saving}
+            />
+          </div>
+
+          {/* Auto Email */}
+          <div className="p-4 flex items-center justify-between">
+            <div>
+              <p className="font-medium">Send to Helpdesk</p>
+              <p className="text-sm text-secondary">Send completed voicemails to helpdesk system</p>
+            </div>
+            <ToggleSwitch
+              enabled={settings?.auto_email === 'true'}
+              onChange={(enabled) => updateSetting('auto_email', enabled ? 'true' : 'false')}
+              disabled={saving}
+            />
+          </div>
+
+          {/* Helpdesk API URL */}
+          {settings?.auto_email === 'true' && (
+            <div className="p-4">
+              <p className="font-medium mb-2">Helpdesk API URL</p>
+              <input
+                type="text"
+                value={settings?.helpdesk_api_url || ''}
+                onChange={(e) => updateSetting('helpdesk_api_url', e.target.value)}
+                placeholder="https://api.example.com/helpdesk"
+                disabled={saving}
+                className="w-full border border-border px-3 py-2 text-sm"
+              />
+            </div>
+          )}
         </div>
       </section>
 
-      {/* Processing Pipeline */}
+      {/* Manual Actions */}
       <section className="mb-12">
-        <h2 className="text-xs font-medium text-secondary uppercase tracking-wide mb-4">Processing Pipeline</h2>
-
-        <div className="border border-border p-6">
-          <pre className="text-xs font-mono overflow-x-auto">
-{`Placetel API                    ElevenLabs                   OpenRouter
-     │                              │                            │
-     │  GET /calls                  │                            │
-     │  filter[type]=voicemail      │                            │
-     ▼                              │                            │
-┌─────────┐                         │                            │
-│  Sync   │  Download MP3           │                            │
-│         │  if duration >= 2s      │                            │
-└────┬────┘                         │                            │
-     │                              │                            │
-     │  status: pending             │                            │
-     ▼                              ▼                            │
-┌─────────┐                   ┌──────────┐                       │
-│Transcribe│ ───────────────► │ Scribe   │                       │
-│         │   POST /speech-   │   v2     │                       │
-└────┬────┘   to-text         └────┬─────┘                       │
-     │                              │                            │
-     │  status: completed           │ text, language,            │
-     │  transcription_text          │ confidence                 │
-     ▼                              ▼                            ▼
-┌─────────┐                                               ┌───────────┐
-│Summarize│ ─────────────────────────────────────────────►│ Gemini 3  │
-│         │   POST /chat/completions                      │   Pro     │
-└────┬────┘                                               └─────┬─────┘
-     │                                                          │
-     │  corrected_text                                          │
-     │  summary                                                 │
-     ▼                                                          │
-┌─────────┐                                                     │
-│  Done   │◄────────────────────────────────────────────────────┘
-└─────────┘`}
-          </pre>
+        <h2 className="text-xs font-medium text-secondary uppercase tracking-wide mb-4">Manual Actions</h2>
+        <div className="border border-border p-4">
+          <button
+            onClick={handleSyncNow}
+            disabled={syncing}
+            className="px-4 py-2 bg-black text-white text-sm hover:bg-gray-800 disabled:opacity-50"
+          >
+            {syncing ? 'Syncing...' : 'Sync Now'}
+          </button>
+          <p className="mt-2 text-sm text-secondary">
+            Manually trigger sync, transcription, and summarization
+          </p>
         </div>
       </section>
 
@@ -217,11 +208,9 @@ export default function Admin() {
           <EndpointRow method="GET" path="/voicemails/{id}" description="Get single voicemail details" />
           <EndpointRow method="GET" path="/voicemails/{id}/audio" description="Stream MP3 audio file" />
           <EndpointRow method="DELETE" path="/voicemails/{id}" description="Delete voicemail and audio" />
-          <EndpointRow method="POST" path="/sync?days=30" description="Fetch voicemails from Placetel" />
-          <EndpointRow method="POST" path="/voicemails/{id}/transcribe" description="Transcribe single voicemail" />
-          <EndpointRow method="POST" path="/transcribe-pending" description="Transcribe all pending" />
-          <EndpointRow method="POST" path="/voicemails/{id}/summarize" description="Summarize single voicemail" />
-          <EndpointRow method="POST" path="/summarize-pending" description="Summarize all transcribed" />
+          <EndpointRow method="GET" path="/settings" description="Get all settings" />
+          <EndpointRow method="PUT" path="/settings/{key}" description="Update a setting" />
+          <EndpointRow method="POST" path="/settings/sync-now" description="Trigger manual sync" />
           <EndpointRow method="GET" path="/health" description="System health check" />
         </div>
       </section>
@@ -229,13 +218,21 @@ export default function Admin() {
   );
 }
 
-function FieldRow({ name, type, description }: { name: string; type: string; description: string }) {
+function ToggleSwitch({ enabled, onChange, disabled }: { enabled: boolean; onChange: (enabled: boolean) => void; disabled: boolean }) {
   return (
-    <div className="p-4 grid grid-cols-12 gap-4 text-sm">
-      <div className="col-span-3 font-mono">{name}</div>
-      <div className="col-span-2 text-secondary font-mono text-xs">{type}</div>
-      <div className="col-span-7 text-secondary">{description}</div>
-    </div>
+    <button
+      onClick={() => onChange(!enabled)}
+      disabled={disabled}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+        enabled ? 'bg-black' : 'bg-gray-300'
+      } ${disabled ? 'opacity-50' : ''}`}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+          enabled ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
   );
 }
 

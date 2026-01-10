@@ -63,4 +63,14 @@ export const api = {
     `/summarize-pending?limit=${limit}`,
     { method: 'POST' }
   ),
+
+  // Settings
+  getSettings: () => request<{ settings: Record<string, string> }>('/settings'),
+
+  updateSetting: (key: string, value: string) => request<{ key: string; value: string }>(
+    `/settings/${key}`,
+    { method: 'PUT', body: JSON.stringify({ value }) }
+  ),
+
+  syncNow: () => request<{ status: string; result: unknown }>('/settings/sync-now', { method: 'POST' }),
 };
