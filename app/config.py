@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     allowed_email: str = "stefan@sonnenglas.net"  # Only this user can access the app
     public_access_secret: str = "change-me-in-production"  # Secret for generating public audio links
 
+    # Error tracking (GlitchTip/Sentry)
+    sentry_dsn: str = "https://7099df1a0e1945ecba8d7884b9e4a01c@glitchtip.sgl.as/2"
+
     class Config:
         env_file = ".env"
         extra = "ignore"  # Ignore dotenvx's DOTENV_PUBLIC_KEY etc.

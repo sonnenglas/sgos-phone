@@ -16,12 +16,12 @@ from app.schemas import HealthResponse
 from app.models import Call, Setting
 from app.config import get_settings
 
-# Initialize GlitchTip error tracking (production only)
+# Initialize GlitchTip/Sentry error tracking (production only, if DSN configured)
 _settings = get_settings()
-if _settings.env != "development":
+if _settings.env != "development" and _settings.sentry_dsn:
     import sentry_sdk
     sentry_sdk.init(
-        dsn="https://7099df1a0e1945ecba8d7884b9e4a01c@glitchtip.sgl.as/2",
+        dsn=_settings.sentry_dsn,
         environment=_settings.env,
         traces_sample_rate=0.1,  # 10% of transactions for performance monitoring
     )

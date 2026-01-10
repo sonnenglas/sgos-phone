@@ -58,6 +58,10 @@ docker compose up -d
    BASE_URL=https://phone.sonnenglas.net
    EMAIL_FROM=phone@sonnenglas.net
    ```
+   Optional (has default):
+   ```
+   SENTRY_DSN=<override GlitchTip DSN if needed>
+   ```
 
 3. **Configure Domain** in Dokploy:
    - Add domain: `phone.sonnenglas.net`
