@@ -32,7 +32,7 @@ Each voicemail gets:
 ### Quick Start (Local)
 
 ```bash
-git clone https://github.com/stefanneubig/phone.git
+git clone https://github.com/sonnenglas/phone.git
 cd phone
 
 # Create .env.docker with decryption key
@@ -47,7 +47,7 @@ docker compose up -d
 ### Production Deployment (Dokploy)
 
 1. **Create Application** in Dokploy
-   - Source: GitHub `stefanneubig/sgos.phone`
+   - Source: GitHub `sonnenglas/sgos.phone`
    - Branch: `main`
    - Build Type: Docker Compose
    - Compose File: `docker-compose.yml`

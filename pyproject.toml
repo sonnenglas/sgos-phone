@@ -11,4 +11,4 @@ authors = [
 keywords = ["voicemail", "transcription", "phone", "fastapi"]
 
 [project.urls]
-Repository = "https://github.com/stefanneubig/sgos.phone"
+Repository = "https://github.com/sonnenglas/sgos.phone"
