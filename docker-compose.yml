@@ -4,11 +4,11 @@ services:
     ports:
       - "9000:8000"
     environment:
-      - DOTENV_PRIVATE_KEY=${DOTENV_PRIVATE_KEY}
-      - BASE_URL=${BASE_URL:-http://localhost:9000}
-      - EMAIL_FROM=${EMAIL_FROM:-}
-      - SENTRY_DSN=${SENTRY_DSN:-}
-      - ENV=${ENV:-production}
+      DOTENV_PRIVATE_KEY: ${DOTENV_PRIVATE_KEY}
+      BASE_URL: ${BASE_URL:-http://localhost:9000}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      ENV: ${ENV:-production}
     volumes:
       - ./data:/app/data
     depends_on:
