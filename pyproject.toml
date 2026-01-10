@@ -1,0 +1,14 @@
+[project]
+name = "sgos-phone"
+version = "1.0.0"
+description = "Internal phone management system - voicemail processing with AI transcription and classification"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Proprietary"}
+authors = [
+    {name = "Stefan Neubig"}
+]
+keywords = ["voicemail", "transcription", "phone", "fastapi"]
+
+[project.urls]
+Repository = "https://github.com/stefanneubig/sgos.phone"

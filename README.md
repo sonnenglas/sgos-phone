@@ -1,144 +1,100 @@
-# Phone
+# Phone (sgos.phone)
 
-Internal phone management system for voicemail processing with automatic transcription and summarization.
+Internal phone management system. Currently handles **voicemail/mailbox messages** from Placetel:
 
-## Features
+1. **Syncs** voicemails from Placetel API
+2. **Transcribes** audio using ElevenLabs speech-to-text
+3. **Summarizes** transcripts with AI (sentiment, emotion, category, urgency)
+4. **Forwards** to helpdesk via configurable API
 
-- **Automatic sync** from Placetel API on configurable intervals
-- **Auto-transcribe** using ElevenLabs Scribe v2
-- **Auto-summarize** with LLM (OpenRouter/Gemini)
-- **Helpdesk integration** via custom API (configurable)
-- **Web interface** to browse, play, and manage voicemails
-- **Settings UI** to configure processing behavior
-- **Single container** deployment with Docker
+## Current Integration: Voicemail
+
+The only active module is voicemail processing. Future modules may include call logs, IVR management, etc.
+
+### Processing Pipeline
+
+```
+Placetel API → Sync → Download MP3 → Transcribe → Summarize/Classify → Helpdesk API
+```
+
+Each voicemail gets:
+- **Transcription**: Full text from audio
+- **Corrected text**: LLM-cleaned transcript
+- **Summary**: 2-3 sentence summary for support agents
+- **Classification**: sentiment, emotion, category, is_urgent
 
 ## Quick Start
 
-### 1. Clone and configure
-
 ```bash
-git clone https://github.com/stefanneubig/phone.git
-cd phone
+git clone https://github.com/stefanneubig/sgos.phone.git
+cd sgos.phone
 
-# Create .env.docker with the decryption key
+# Set decryption key for encrypted .env
 echo "DOTENV_PRIVATE_KEY=your-key-here" > .env.docker
-```
 
-### 2. Start the application
-
-```bash
+# Start
 docker compose up -d
 ```
 
-The app will be available at **http://localhost:9000**
-
-### 3. Configure settings
-
-1. Open the web interface
-2. Go to Settings (admin page)
-3. Configure sync interval and processing options
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Phone App                                │
-├─────────────────────────────────────────────────────────────┤
-│  Frontend (React)          │  Backend (FastAPI)             │
-│  ├─ /voicemails (list)     │  ├─ REST API                   │
-│  ├─ /voicemails/:id        │  ├─ Background Scheduler       │
-│  └─ /admin (settings)      │  └─ Helpdesk Integration       │
-├─────────────────────────────────────────────────────────────┤
-│  Background Worker (APScheduler)                            │
-│  ├─ Sync job (configurable interval)                        │
-│  ├─ Transcribe job (auto-process pending)                   │
-│  ├─ Summarize job (auto-process transcribed)                │
-│  └─ Helpdesk job (send to configured API)                   │
-├─────────────────────────────────────────────────────────────┤
-│  PostgreSQL 18                                               │
-└─────────────────────────────────────────────────────────────┘
-```
+App runs at **http://localhost:9000**
 
 ## Configuration
 
-### Settings (via Admin UI)
+### Settings (Admin UI)
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Sync Interval | 15 min | How often to fetch from Placetel |
-| Auto Transcribe | On | Automatically transcribe new voicemails |
-| Auto Summarize | On | Automatically summarize after transcription |
-| Send to Helpdesk | Off | Send completed voicemails to helpdesk API |
-| Helpdesk API URL | - | Target endpoint for helpdesk integration |
+| Auto Transcribe | On | Transcribe new voicemails automatically |
+| Auto Summarize | On | Summarize after transcription |
+| Send to Helpdesk | Off | Forward to helpdesk API |
+| Helpdesk API URL | — | Target endpoint |
 
 ### Environment Variables
 
-All encrypted in `.env`, decrypted at runtime:
+Encrypted in `.env`, decrypted at runtime with dotenvx:
 
 | Variable | Description |
 |----------|-------------|
 | `PLACETEL_API_KEY` | Placetel API access |
 | `ELEVENLABS_API_KEY` | ElevenLabs transcription |
-| `OPENROUTER_API_KEY` | OpenRouter LLM summarization |
-| `DATABASE_URL` | PostgreSQL connection string |
+| `OPENROUTER_API_KEY` | OpenRouter LLM |
+| `DATABASE_URL` | PostgreSQL connection |
 
-## API Endpoints
+## API
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/voicemails` | List all voicemails |
+| GET | `/voicemails` | List voicemails |
 | GET | `/voicemails/{id}` | Get single voicemail |
-| GET | `/voicemails/{id}/audio` | Stream audio file |
+| GET | `/voicemails/{id}/audio` | Stream audio |
 | DELETE | `/voicemails/{id}` | Delete voicemail |
-| GET | `/settings` | Get all settings |
-| PUT | `/settings/{key}` | Update a setting |
-| POST | `/settings/sync-now` | Trigger manual sync |
+| GET | `/settings` | Get settings |
+| PUT | `/settings/{key}` | Update setting |
+| POST | `/settings/sync-now` | Manual sync |
 | GET | `/health` | Health check |
 
-API documentation: `/docs` (Swagger UI)
+Full docs at `/docs` (Swagger UI)
 
-## Deployment
+## Architecture
 
-### Docker (Recommended)
-
-```bash
-# Clone repository
-git clone https://github.com/stefanneubig/phone.git
-cd phone
-
-# Set the decryption key
-echo "DOTENV_PRIVATE_KEY=xxx" > .env.docker
-
-# Start
-docker compose up -d
-
-# Verify
-curl http://localhost:9000/health
 ```
-
-### With Dokploy / Coolify
-
-1. Connect your GitHub repository
-2. Set environment variable: `DOTENV_PRIVATE_KEY`
-3. Deploy
-
-## Development
-
-### Backend
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
+┌─────────────────────────────────────────────────────────────┐
+│                     Phone (sgos.phone)                      │
+├─────────────────────────────────────────────────────────────┤
+│  Frontend (React)          │  Backend (FastAPI)             │
+│  ├─ Voicemail list         │  ├─ REST API                   │
+│  ├─ Voicemail detail       │  ├─ Background scheduler       │
+│  └─ Settings               │  └─ Helpdesk integration       │
+├─────────────────────────────────────────────────────────────┤
+│  Background Jobs (APScheduler, every N minutes)             │
+│  ├─ Sync from Placetel                                      │
+│  ├─ Transcribe pending                                      │
+│  ├─ Summarize & classify                                    │
+│  └─ Forward to helpdesk                                     │
+├─────────────────────────────────────────────────────────────┤
+│  PostgreSQL 18                                              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Tech Stack
@@ -147,9 +103,24 @@ npm run dev
 - **Frontend**: React 18, TypeScript, Tailwind CSS, Vite
 - **Database**: PostgreSQL 18
 - **Transcription**: ElevenLabs Scribe v2
-- **Summarization**: OpenRouter (Gemini 3 Pro)
-- **Secrets**: dotenvx (encrypted in repo)
+- **Summarization**: OpenRouter (Gemini 2.5 Pro)
+- **Secrets**: dotenvx
+
+## Development
+
+```bash
+# Backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+
+# Frontend
+cd frontend
+npm install
+npm run dev
+```
 
 ## License
 
-MIT
+Proprietary

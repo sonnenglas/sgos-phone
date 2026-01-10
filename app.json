@@ -1,9 +1,0 @@
-{
-  "name": "Phone",
-  "id": "sgos.phone",
-  "version": "1.0.0",
-  "description": "Internal phone management system - voicemail processing with AI classification",
-  "author": "Stefan Neubig",
-  "repository": "github.com/stefanneubig/sgos.phone",
-  "modules": ["voicemail"]
-}
