@@ -388,7 +388,7 @@ export default function Home() {
           className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
           onClick={(e) => e.target === e.currentTarget && setSelectedVoicemail(null)}
         >
-          <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg shadow-xl">
             {/* Modal Header */}
             <div className="sticky top-0 bg-white border-b border-border px-6 py-4 flex items-center justify-between">
               <div>
@@ -470,7 +470,7 @@ export default function Home() {
                   </Badge>
                 </div>
                 <div>
-                  <span className="text-secondary">Helpdesk:</span>{' '}
+                  <span className="text-secondary">Email:</span>{' '}
                   {getEmailStatusInfo(selectedVoicemail) ? (
                     <Badge variant={getEmailStatusInfo(selectedVoicemail)!.variant}>
                       {getEmailStatusInfo(selectedVoicemail)!.label}
@@ -493,52 +493,63 @@ export default function Home() {
             </div>
 
             {/* Modal Footer */}
-            <div className="sticky bottom-0 bg-white border-t border-border px-6 py-4 flex items-center gap-2">
-              {!isSkipped(selectedVoicemail) && selectedVoicemail.transcription_status === 'pending' && (
-                <Button variant="primary" onClick={handleTranscribe} loading={transcribing}>
-                  Transcribe
-                </Button>
-              )}
-              {!isSkipped(selectedVoicemail) && selectedVoicemail.transcription_status === 'completed' && !selectedVoicemail.summary && (
-                <Button variant="primary" onClick={handleSummarize} loading={summarizing}>
-                  Summarize
-                </Button>
-              )}
-              {!isSkipped(selectedVoicemail) && selectedVoicemail.local_file_path && (
-                <Button variant="secondary" onClick={handleReprocess} loading={reprocessing}>
-                  Reprocess
-                </Button>
-              )}
-              {!isSkipped(selectedVoicemail) && selectedVoicemail.listen_url && (
-                <a
-                  href={selectedVoicemail.listen_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button variant="secondary">Listen Page</Button>
-                </a>
-              )}
-              {!isSkipped(selectedVoicemail) && (
-                <a
-                  href={api.getEmailPreviewUrl(selectedVoicemail.id)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button variant="secondary">Email Preview</Button>
-                </a>
-              )}
-              {!isSkipped(selectedVoicemail) && selectedVoicemail.summary && selectedVoicemail.email_status !== 'sent' && (
-                <Button variant="secondary" onClick={handleSendEmail} loading={sendingEmail}>
-                  Send Email
-                </Button>
-              )}
-              <Button variant="secondary" onClick={handleDelete}>
-                Delete
-              </Button>
-              <div className="flex-1" />
-              <Button variant="secondary" onClick={() => setSelectedVoicemail(null)}>
-                Close
-              </Button>
+            <div className="sticky bottom-0 bg-white border-t border-border px-6 py-4">
+              <div className="flex items-center justify-between">
+                {/* Left: Action buttons */}
+                <div className="flex items-center gap-2">
+                  {!isSkipped(selectedVoicemail) && selectedVoicemail.transcription_status === 'pending' && (
+                    <Button variant="primary" onClick={handleTranscribe} loading={transcribing}>
+                      Transcribe
+                    </Button>
+                  )}
+                  {!isSkipped(selectedVoicemail) && selectedVoicemail.transcription_status === 'completed' && !selectedVoicemail.summary && (
+                    <Button variant="primary" onClick={handleSummarize} loading={summarizing}>
+                      Summarize
+                    </Button>
+                  )}
+                  {!isSkipped(selectedVoicemail) && selectedVoicemail.summary && selectedVoicemail.email_status !== 'sent' && (
+                    <Button variant="primary" onClick={handleSendEmail} loading={sendingEmail}>
+                      Send Email
+                    </Button>
+                  )}
+                  {!isSkipped(selectedVoicemail) && selectedVoicemail.local_file_path && (
+                    <Button variant="ghost" onClick={handleReprocess} loading={reprocessing}>
+                      Reprocess
+                    </Button>
+                  )}
+                </div>
+
+                {/* Right: Links and close */}
+                <div className="flex items-center gap-2">
+                  {!isSkipped(selectedVoicemail) && selectedVoicemail.listen_url && (
+                    <a
+                      href={selectedVoicemail.listen_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-secondary hover:text-black"
+                    >
+                      Listen Page ↗
+                    </a>
+                  )}
+                  {!isSkipped(selectedVoicemail) && selectedVoicemail.summary && (
+                    <a
+                      href={api.getEmailPreviewUrl(selectedVoicemail.id)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-secondary hover:text-black"
+                    >
+                      Email Preview ↗
+                    </a>
+                  )}
+                  <div className="w-px h-6 bg-border mx-2" />
+                  <Button variant="danger" size="sm" onClick={handleDelete}>
+                    Delete
+                  </Button>
+                  <Button variant="secondary" onClick={() => setSelectedVoicemail(null)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
