@@ -51,9 +51,10 @@ docker compose up -d
    - Build: Docker Compose
    - Compose file: `docker-compose.yml`
 
-2. **Set Environment Variable**
+2. **Set Environment Variables** in Dokploy:
    ```
    DOTENV_PRIVATE_KEY=<your-key>
+   BASE_URL=https://phone.yourdomain.com
    ```
 
 3. **Deploy** - Dokploy builds and starts the container
@@ -89,21 +90,26 @@ For production, migrations run automatically on startup via Alembic.
 
 ### Environment Variables
 
-Encrypted in `.env` using dotenvx. Decrypted at runtime.
+**Encrypted in `.env`** (secrets - decrypted at runtime by dotenvx):
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `PLACETEL_API_KEY` | Yes | Placetel API access |
-| `ELEVENLABS_API_KEY` | Yes | ElevenLabs transcription |
-| `OPENROUTER_API_KEY` | Yes | OpenRouter LLM for summaries |
-| `POSTMARK_API_TOKEN` | Yes | Postmark email sending |
-| `EMAIL_FROM` | Yes | Sender email (e.g., phone@domain.com) |
-| `EMAIL_FROM_NAME` | No | Sender name (default: "Phone App") |
-| `BASE_URL` | Yes | Public URL (e.g., https://phone.domain.com) |
-| `PUBLIC_ACCESS_SECRET` | Yes | Secret for token-based public links |
-| `ALLOWED_EMAIL` | No | Admin email for auth (default: stefan@sonnenglas.net) |
-| `ENV` | No | Set to "development" to disable auth |
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `PLACETEL_API_KEY` | Placetel API access |
+| `ELEVENLABS_API_KEY` | ElevenLabs transcription |
+| `OPENROUTER_API_KEY` | OpenRouter LLM for summaries |
+| `POSTMARK_API_TOKEN` | Postmark email sending |
+| `PUBLIC_ACCESS_SECRET` | Secret for token-based public links |
+
+**Set in Dokploy** (not secrets - environment-specific):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BASE_URL` | http://localhost:9000 | Public URL for email links |
+| `EMAIL_FROM` | — | Sender email (e.g., phone@domain.com) |
+| `EMAIL_FROM_NAME` | Phone App | Sender name |
+| `ALLOWED_EMAIL` | stefan@sonnenglas.net | Admin email for auth |
+| `ENV` | production | Set to "development" to disable auth |
 
 ### Adding/Updating Secrets
 
