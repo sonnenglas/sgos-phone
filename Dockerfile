@@ -38,5 +38,7 @@ RUN mkdir -p /app/data/voicemails
 
 EXPOSE 8000
 
-# dotenvx decrypts .env using DOTENV_PRIVATE_KEY env var
-CMD ["sh", "-c", "dotenvx run -- sh -c 'alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000'"]
+# Run migrations and start server
+# In production (Dokploy), env vars are passed directly
+# In development, use: dotenvx run -- docker compose up
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
