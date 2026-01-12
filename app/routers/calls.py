@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from pathlib import Path
@@ -10,7 +10,7 @@ from app.database import get_db
 from app.models import Call
 from app.schemas import CallResponse, NumbersResponse, PhoneNumber
 from app.services.placetel import PlacetelService
-from app.services.email import generate_email_html, voicemail_to_email_data
+from app.services.email import generate_email_html, generate_email_plain, voicemail_to_email_data
 from app.services.access_token import get_public_url
 from app.config import get_settings
 
@@ -186,7 +186,7 @@ def delete_voicemail(voicemail_id: int, db: Session = Depends(get_db)):
 
 @router.get("/voicemails/{voicemail_id}/email-preview", response_class=HTMLResponse)
 def preview_voicemail_email(voicemail_id: int, db: Session = Depends(get_db)):
-    """Preview the email that would be sent for this voicemail."""
+    """Preview the HTML email that would be sent for this voicemail."""
     call = db.query(Call).filter(Call.id == voicemail_id).first()
     if not call:
         raise HTTPException(status_code=404, detail="Voicemail not found")
@@ -199,6 +199,23 @@ def preview_voicemail_email(voicemail_id: int, db: Session = Depends(get_db)):
     html = generate_email_html(email_data)
 
     return HTMLResponse(content=html)
+
+
+@router.get("/voicemails/{voicemail_id}/email-preview-text", response_class=PlainTextResponse)
+def preview_voicemail_email_text(voicemail_id: int, db: Session = Depends(get_db)):
+    """Preview the plain text email that would be sent for this voicemail."""
+    call = db.query(Call).filter(Call.id == voicemail_id).first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Voicemail not found")
+
+    if call.status != "voicemail":
+        raise HTTPException(status_code=400, detail="This call is not a voicemail")
+
+    settings = get_settings()
+    email_data = voicemail_to_email_data(call, settings.base_url)
+    text = generate_email_plain(email_data)
+
+    return PlainTextResponse(content=text)
 
 
 @router.patch("/voicemails/{voicemail_id}/read")

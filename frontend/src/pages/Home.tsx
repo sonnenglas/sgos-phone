@@ -111,6 +111,13 @@ export default function Home() {
   const [playingId, setPlayingId] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
+  // Email preview modal state
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
+  const [emailPreviewTab, setEmailPreviewTab] = useState<'html' | 'text'>('html');
+  const [emailPreviewHtml, setEmailPreviewHtml] = useState<string>('');
+  const [emailPreviewText, setEmailPreviewText] = useState<string>('');
+  const [loadingEmailPreview, setLoadingEmailPreview] = useState(false);
+
   const fetchData = async () => {
     try {
       const [voicemailData, healthData] = await Promise.all([
@@ -211,6 +218,27 @@ export default function Home() {
       alert('Failed to send email. Check settings.');
     } finally {
       setSendingEmail(false);
+    }
+  };
+
+  // Open email preview modal
+  const openEmailPreview = async (id: number) => {
+    setLoadingEmailPreview(true);
+    setShowEmailPreview(true);
+    setEmailPreviewTab('html');
+    try {
+      const [html, text] = await Promise.all([
+        api.getEmailPreviewHtml(id),
+        api.getEmailPreviewText(id),
+      ]);
+      setEmailPreviewHtml(html);
+      setEmailPreviewText(text);
+    } catch (error) {
+      console.error('Failed to load email preview:', error);
+      setEmailPreviewHtml('<p>Failed to load preview</p>');
+      setEmailPreviewText('Failed to load preview');
+    } finally {
+      setLoadingEmailPreview(false);
     }
   };
 
@@ -361,13 +389,16 @@ export default function Home() {
                       <div className="font-medium">{formatPhoneNumber(voicemail.from_number)}</div>
                       <div className="text-secondary text-xs">→ {voicemail.to_number_name || voicemail.to_number || '—'}</div>
                     </td>
-                    <td className="px-4 py-3 max-w-md">
+                    <td className="px-4 py-3 max-w-lg">
+                      {voicemail.email_subject && !skipped && (
+                        <div className="font-medium text-xs mb-1">{voicemail.email_subject}</div>
+                      )}
                       {voicemail.summary && !SKIP_TEXTS.includes(voicemail.summary) ? (
-                        <div className="truncate">{voicemail.summary}</div>
+                        <div className="text-xs text-secondary line-clamp-3">{voicemail.summary}</div>
                       ) : skipped ? (
-                        <span className="text-secondary italic">Skipped</span>
+                        <span className="text-secondary italic text-xs">Skipped</span>
                       ) : (
-                        <span className="text-secondary italic">Awaiting processing...</span>
+                        <span className="text-secondary italic text-xs">Awaiting processing...</span>
                       )}
                       {voicemail.category && voicemail.category !== 'general' && (
                         <div className="mt-1">
@@ -523,6 +554,33 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
+              {/* Email Details */}
+              {(selectedVoicemail.email_status === 'sent' || selectedVoicemail.email_subject) && (
+                <div className="border-t border-border pt-4">
+                  <h3 className="text-xs font-medium text-secondary uppercase tracking-wide mb-2">Email Details</h3>
+                  <div className="space-y-2 text-sm">
+                    {selectedVoicemail.email_subject && (
+                      <div>
+                        <span className="text-secondary">Subject:</span>{' '}
+                        <span className="font-medium">{selectedVoicemail.email_subject}</span>
+                      </div>
+                    )}
+                    {selectedVoicemail.email_sent_at && (
+                      <div>
+                        <span className="text-secondary">Sent:</span>{' '}
+                        {new Date(selectedVoicemail.email_sent_at).toLocaleString('de-DE')}
+                      </div>
+                    )}
+                    {selectedVoicemail.email_message_id && (
+                      <div>
+                        <span className="text-secondary">Postmark ID:</span>{' '}
+                        <code className="text-xs bg-hover px-1 py-0.5">{selectedVoicemail.email_message_id}</code>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
@@ -565,14 +623,12 @@ export default function Home() {
                     </a>
                   )}
                   {!isSkipped(selectedVoicemail) && selectedVoicemail.summary && (
-                    <a
-                      href={api.getEmailPreviewUrl(selectedVoicemail.id)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={() => openEmailPreview(selectedVoicemail.id)}
                       className="text-sm text-secondary hover:text-black"
                     >
-                      Email Preview ↗
-                    </a>
+                      Email Preview
+                    </button>
                   )}
                   <div className="w-px h-6 bg-border mx-2" />
                   <Button variant="danger" size="sm" onClick={handleDelete}>
@@ -583,6 +639,60 @@ export default function Home() {
                   </Button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Preview Modal */}
+      {showEmailPreview && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]"
+          onClick={(e) => e.target === e.currentTarget && setShowEmailPreview(false)}
+        >
+          <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-lg shadow-xl flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <div className="flex items-center gap-4">
+                <h2 className="text-lg font-semibold">Email Preview</h2>
+                <div className="flex border border-border rounded overflow-hidden">
+                  <button
+                    onClick={() => setEmailPreviewTab('html')}
+                    className={`px-3 py-1 text-sm ${emailPreviewTab === 'html' ? 'bg-black text-white' : 'hover:bg-hover'}`}
+                  >
+                    HTML
+                  </button>
+                  <button
+                    onClick={() => setEmailPreviewTab('text')}
+                    className={`px-3 py-1 text-sm ${emailPreviewTab === 'text' ? 'bg-black text-white' : 'hover:bg-hover'}`}
+                  >
+                    Plain Text
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowEmailPreview(false)}
+                className="text-secondary hover:text-black text-2xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-auto">
+              {loadingEmailPreview ? (
+                <div className="flex items-center justify-center py-24">
+                  <span className="text-secondary">Loading preview...</span>
+                </div>
+              ) : emailPreviewTab === 'html' ? (
+                <iframe
+                  srcDoc={emailPreviewHtml}
+                  className="w-full h-full min-h-[600px] border-0"
+                  title="Email HTML Preview"
+                />
+              ) : (
+                <pre className="p-6 text-sm whitespace-pre-wrap font-mono bg-gray-50">{emailPreviewText}</pre>
+              )}
             </div>
           </div>
         </div>

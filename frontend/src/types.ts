@@ -45,6 +45,8 @@ export interface Call {
   // Helpdesk
   email_status: 'pending' | 'sent' | 'failed' | 'skipped';
   email_sent_at: string | null;
+  email_subject: string | null;
+  email_message_id: string | null;
 
   // Metadata
   created_at: string | null;

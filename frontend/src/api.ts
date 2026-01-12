@@ -44,6 +44,18 @@ export const api = {
 
   getEmailPreviewUrl: (id: number) => `${API_BASE}/voicemails/${id}/email-preview`,
 
+  getEmailPreviewHtml: async (id: number): Promise<string> => {
+    const response = await fetch(`${API_BASE}/voicemails/${id}/email-preview`);
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    return response.text();
+  },
+
+  getEmailPreviewText: async (id: number): Promise<string> => {
+    const response = await fetch(`${API_BASE}/voicemails/${id}/email-preview-text`);
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    return response.text();
+  },
+
   // Sync
   sync: (days: number = 30) => request<SyncResponse>(`/sync?days=${days}`, { method: 'POST' }),
 
