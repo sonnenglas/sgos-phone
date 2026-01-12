@@ -23,6 +23,7 @@ from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import Call
+from app.settings import get_setting
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
 logger = logging.getLogger(__name__)
@@ -89,12 +90,36 @@ async def process_voicemail_immediate(call_id: str):
             # Create new record
             to_number = vm_data.get("to_number", {})
 
+            # Parse voicemail timestamp
+            started_at = None
+            if vm_data.get("received_at"):
+                started_at = datetime.fromisoformat(vm_data["received_at"].replace("Z", "+00:00"))
+
             if duration < MIN_DURATION_SECONDS:
                 initial_status = "skipped"
                 initial_text = "[Too short]" if duration > 0 else "[No audio]"
             else:
                 initial_status = "pending"
                 initial_text = None
+
+            # Get email cutoff date - voicemails before this date should not be emailed
+            email_only_after = get_setting("email_only_after", "")
+            cutoff_date = None
+            if email_only_after:
+                try:
+                    cutoff_date = datetime.fromisoformat(email_only_after.replace("Z", "+00:00"))
+                except Exception:
+                    pass
+
+            # Determine email status - apply cutoff check here
+            if initial_status != "pending":
+                email_status = "skipped"
+            elif cutoff_date and started_at and started_at < cutoff_date:
+                # Voicemail is before cutoff date - skip email
+                email_status = "skipped"
+                logger.info(f"Webhook: Voicemail {call_id} before cutoff date, email skipped")
+            else:
+                email_status = "pending"
 
             call = Call(
                 external_id=call_id,
@@ -105,13 +130,12 @@ async def process_voicemail_immediate(call_id: str):
                 to_number=to_number.get("number") if isinstance(to_number, dict) else to_number,
                 to_number_name=to_number.get("name") if isinstance(to_number, dict) else None,
                 duration=duration,
-                started_at=datetime.fromisoformat(vm_data["received_at"].replace("Z", "+00:00"))
-                if vm_data.get("received_at") else None,
+                started_at=started_at,
                 file_url=file_url,
                 unread=vm_data.get("unread", True),
                 transcription_status=initial_status,
                 transcription_text=initial_text,
-                email_status="pending" if initial_status == "pending" else "skipped",
+                email_status=email_status,
             )
             db.add(call)
             db.flush()  # Get the ID

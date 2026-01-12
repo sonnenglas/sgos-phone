@@ -257,13 +257,14 @@ async def send_email(voicemail_id: int, db: Session = Depends(get_db)):
     )
 
     email_data = voicemail_to_email_data(call, settings.base_url)
-    success = await email_service.send(to_email=to_email, data=email_data)
+    message_id = await email_service.send(to_email=to_email, data=email_data)
 
-    if success:
+    if message_id:
         call.email_status = "sent"
         call.email_sent_at = datetime.now(timezone.utc)
+        call.email_message_id = message_id  # Store for delivery verification
         db.commit()
-        return {"status": "sent", "to": to_email, "voicemail_id": voicemail_id}
+        return {"status": "sent", "to": to_email, "voicemail_id": voicemail_id, "message_id": message_id}
     else:
         call.email_status = "failed"
         db.commit()

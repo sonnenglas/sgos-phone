@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 import type { Voicemail, HealthResponse } from '../types';
 import Badge from '../components/Badge';
@@ -107,6 +107,10 @@ export default function Home() {
   const [reprocessing, setReprocessing] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
 
+  // Audio playback state for inline play button
+  const [playingId, setPlayingId] = useState<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
   const fetchData = async () => {
     try {
       const [voicemailData, healthData] = await Promise.all([
@@ -210,6 +214,23 @@ export default function Home() {
     }
   };
 
+  // Toggle audio playback for a voicemail
+  const togglePlay = (id: number) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (playingId === id) {
+      // Currently playing this one - pause it
+      audio.pause();
+      setPlayingId(null);
+    } else {
+      // Play new audio
+      audio.src = api.getAudioUrl(id);
+      audio.play().catch(console.error);
+      setPlayingId(id);
+    }
+  };
+
   const filteredVoicemails = showSkipped
     ? voicemails
     : voicemails.filter(v => !isSkipped(v));
@@ -233,6 +254,13 @@ export default function Home() {
 
   return (
     <div className="animate-fade-in">
+      {/* Hidden audio element for inline playback */}
+      <audio
+        ref={audioRef}
+        onEnded={() => setPlayingId(null)}
+        onError={() => setPlayingId(null)}
+      />
+
       {/* Dashboard Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -362,16 +390,21 @@ export default function Home() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      {!skipped && voicemail.listen_url && (
-                        <a
-                          href={voicemail.listen_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                      {!skipped && voicemail.local_file_path && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePlay(voicemail.id);
+                          }}
+                          className="w-8 h-8 flex items-center justify-center border border-border hover:bg-hover transition-colors duration-150"
+                          aria-label={playingId === voicemail.id ? 'Pause' : 'Play'}
                         >
-                          Open
-                        </a>
+                          {playingId === voicemail.id ? (
+                            <span className="text-sm">| |</span>
+                          ) : (
+                            <span className="text-sm ml-0.5">&#9654;</span>
+                          )}
+                        </button>
                       )}
                     </td>
                   </tr>

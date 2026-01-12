@@ -70,6 +70,8 @@ class Call(Base):
     # Helpdesk forwarding (voicemail only)
     email_status = Column(String(20), default="pending")  # pending, sent, failed, skipped
     email_sent_at = Column(DateTime(timezone=True))
+    email_subject = Column(String(255))  # LLM-generated email subject line
+    email_message_id = Column(String(100))  # Postmark MessageID for delivery tracking
 
     # Metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now())

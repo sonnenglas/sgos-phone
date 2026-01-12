@@ -35,6 +35,7 @@ class VoicemailEmailData:
     category: Optional[str]
     priority: Optional[str]
     audio_url: str
+    email_subject: Optional[str] = None  # LLM-generated subject line
     local_file_path: Optional[str] = None
 
 
@@ -46,13 +47,32 @@ def format_duration(seconds: int) -> str:
 
 
 def format_phone(number: str) -> str:
-    """Format phone number for display."""
+    """Format phone number for display with international format."""
     if not number:
         return "Unknown"
-    # Remove common prefixes for display
-    if number.startswith("+49"):
-        return f"0{number[3:]}"
-    return number
+
+    # Normalize to +49 format
+    clean = number.strip()
+    if clean.startswith("0049"):
+        clean = "+49" + clean[4:]
+    elif clean.startswith("00"):
+        clean = "+" + clean[2:]
+    elif clean.startswith("0") and not clean.startswith("+"):
+        clean = "+49" + clean[1:]
+
+    # Add spaces for readability (German mobile: +49 176 1234 5678)
+    if clean.startswith("+49"):
+        rest = clean[3:]
+        if len(rest) >= 10:
+            # Mobile numbers (176, 177, 178, 179, 151, 152, 157, 160, 162, 163, 170, 171, 172, 173, 174, 175)
+            return f"+49 {rest[:3]} {rest[3:7]} {rest[7:]}"
+        elif len(rest) >= 7:
+            # Shorter numbers
+            return f"+49 {rest[:3]} {rest[3:]}"
+        else:
+            return f"+49 {rest}"
+
+    return clean
 
 
 def get_priority_badge(priority: Optional[str]) -> str:
@@ -237,34 +257,43 @@ def generate_email_plain(data: VoicemailEmailData) -> str:
     caller = format_phone(data.from_number)
     destination = data.to_number_name or format_phone(data.to_number)
     duration = format_duration(data.duration)
-    received = data.received_at.strftime("%d.%m.%Y um %H:%M Uhr")
+    received = data.received_at.strftime("%d.%m.%Y at %H:%M")
     transcript = data.corrected_text or data.transcription_text or "No transcription available."
 
-    lines = [
-        "NEW VOICEMAIL",
-        "=" * 40,
-        "",
-        f"From:     {caller}",
-        f"To:       {destination}",
-        f"Duration: {duration}",
-        f"Received: {received}",
-        "",
-    ]
+    lines = []
 
-    # Add classification if available
+    # High priority alert at top
     if data.priority == "high":
-        lines.append("Priority: HIGH")
-    if data.category:
-        lines.append(f"Category: {data.category.replace('_', ' ').title()}")
-    if data.sentiment or data.emotion:
-        mood = data.emotion or data.sentiment
-        lines.append(f"Mood:     {mood.capitalize()}")
+        lines.extend([
+            "!!! HIGH PRIORITY !!!",
+            "",
+        ])
 
+    # Header with key info
     lines.extend([
+        "=" * 50,
+        "  NEW VOICEMAIL",
+        f"  From: {caller}",
+        f"  To:   {destination}",
+        f"  Date: {received}  ({duration})",
+        "=" * 50,
         "",
-        "-" * 40,
+    ])
+
+    # Classification badges inline
+    badges = []
+    if data.category and data.category != "general":
+        badges.append(data.category.replace('_', ' ').title())
+    if data.emotion and data.emotion not in ("calm", "neutral"):
+        badges.append(data.emotion.capitalize())
+    if badges:
+        lines.append(f"[{' | '.join(badges)}]")
+        lines.append("")
+
+    # Summary section - most important
+    lines.extend([
         "SUMMARY",
-        "-" * 40,
+        "-" * 50,
         "",
         data.summary or "No summary available.",
     ])
@@ -273,22 +302,24 @@ def generate_email_plain(data: VoicemailEmailData) -> str:
     if data.summary_en and data.summary_en != data.summary:
         lines.extend([
             "",
-            "English: " + data.summary_en,
+            f"(English: {data.summary_en})",
         ])
 
     lines.extend([
         "",
-        "-" * 40,
-        "FULL TRANSCRIPT",
-        "-" * 40,
+        "",
+        "TRANSCRIPT",
+        "-" * 50,
         "",
         transcript,
         "",
-        "-" * 40,
         "",
+        "=" * 50,
         f"Listen: {data.audio_url}",
+        f"Callback: {caller}",
+        "=" * 50,
         "",
-        f"-- Phone App | Voicemail #{data.id}",
+        f"Phone App | Voicemail #{data.id}",
     ])
 
     return "\n".join(lines)
@@ -307,16 +338,24 @@ class PostmarkEmailService:
         to_email: str,
         data: VoicemailEmailData,
         attach_audio: bool = False,
-    ) -> bool:
-        """Send a voicemail notification email via Postmark."""
+    ) -> Optional[str]:
+        """Send a voicemail notification email via Postmark.
+
+        Returns the Postmark MessageID on success, or None on failure.
+        """
 
         caller = format_phone(data.from_number)
         duration = format_duration(data.duration)
+        received = data.received_at.strftime("%d.%m.%Y %H:%M")
+
+        # Build subject line with LLM-generated topic, phone, and date/time
+        subject_topic = data.email_subject or "Voicemail"
+        subject = f"{subject_topic} | {caller} | {received}"
 
         payload = {
             "From": f"{self.from_name} <{self.from_email}>",
             "To": to_email,
-            "Subject": f"Voicemail from {caller} ({duration})",
+            "Subject": subject,
             "HtmlBody": generate_email_html(data),
             "TextBody": generate_email_plain(data),
             "MessageStream": "outbound",
@@ -349,15 +388,16 @@ class PostmarkEmailService:
 
                 if response.status_code == 200:
                     result = response.json()
-                    logger.info(f"Email sent to {to_email} for voicemail #{data.id} (MessageID: {result.get('MessageID')})")
-                    return True
+                    message_id = result.get('MessageID')
+                    logger.info(f"Email sent to {to_email} for voicemail #{data.id} (MessageID: {message_id})")
+                    return message_id
                 else:
                     logger.error(f"Postmark error: {response.status_code} - {response.text}")
-                    return False
+                    return None
 
         except Exception as e:
             logger.error(f"Failed to send email to {to_email}: {e}")
-            return False
+            return None
 
 
 def voicemail_to_email_data(call, base_url: str) -> VoicemailEmailData:
@@ -380,5 +420,6 @@ def voicemail_to_email_data(call, base_url: str) -> VoicemailEmailData:
         category=call.category,
         priority=call.priority,
         audio_url=get_public_url(call.id),  # Public player page with token
+        email_subject=call.email_subject,
         local_file_path=call.local_file_path,
     )

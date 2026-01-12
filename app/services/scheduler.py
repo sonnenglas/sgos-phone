@@ -86,8 +86,19 @@ async def run_sync_job() -> dict:
         days = calculate_sync_days()
         voicemails = await placetel.fetch_voicemails(days=days)
 
+        # Get email cutoff date - voicemails before this date should not be emailed
+        email_only_after = get_setting("email_only_after", "")
+        cutoff_date = None
+        if email_only_after:
+            try:
+                cutoff_date = datetime.fromisoformat(email_only_after.replace("Z", "+00:00"))
+                logger.info(f"Email cutoff date for sync: {cutoff_date.isoformat()}")
+            except Exception:
+                pass
+
         new_count = 0
         downloaded_count = 0
+        skipped_by_cutoff = 0
 
         for vm_data in voicemails:
             external_id = str(vm_data["id"])
@@ -102,6 +113,11 @@ async def run_sync_job() -> dict:
             to_number = vm_data.get("to_number", {})
             duration = vm_data.get("duration") or 0
 
+            # Parse voicemail timestamp
+            started_at = None
+            if vm_data.get("received_at"):
+                started_at = datetime.fromisoformat(vm_data["received_at"].replace("Z", "+00:00"))
+
             # Determine initial status
             if duration < MIN_DURATION_SECONDS:
                 initial_status = "skipped"
@@ -109,6 +125,17 @@ async def run_sync_job() -> dict:
             else:
                 initial_status = "pending"
                 initial_text = None
+
+            # Determine email status - apply cutoff check here
+            if initial_status != "pending":
+                email_status = "skipped"
+            elif cutoff_date and started_at and started_at < cutoff_date:
+                # Voicemail is before cutoff date - skip email
+                email_status = "skipped"
+                skipped_by_cutoff += 1
+                logger.debug(f"Voicemail {external_id} before cutoff date, email skipped")
+            else:
+                email_status = "pending"
 
             call = Call(
                 external_id=external_id,
@@ -119,13 +146,12 @@ async def run_sync_job() -> dict:
                 to_number=to_number.get("number") if isinstance(to_number, dict) else to_number,
                 to_number_name=to_number.get("name") if isinstance(to_number, dict) else None,
                 duration=duration,
-                started_at=datetime.fromisoformat(vm_data["received_at"].replace("Z", "+00:00"))
-                if vm_data.get("received_at") else None,
+                started_at=started_at,
                 file_url=vm_data.get("file_url"),
                 unread=vm_data.get("unread", True),
                 transcription_status=initial_status,
                 transcription_text=initial_text,
-                email_status="pending" if initial_status == "pending" else "skipped",
+                email_status=email_status,
             )
             db.add(call)
             new_count += 1
@@ -144,8 +170,8 @@ async def run_sync_job() -> dict:
         # Update last sync time
         set_setting("last_sync_at", datetime.now(timezone.utc).isoformat())
 
-        logger.info(f"Sync complete: {new_count} new, {downloaded_count} downloaded")
-        return {"new": new_count, "downloaded": downloaded_count}
+        logger.info(f"Sync complete: {new_count} new, {downloaded_count} downloaded, {skipped_by_cutoff} email-skipped by cutoff")
+        return {"new": new_count, "downloaded": downloaded_count, "email_skipped_by_cutoff": skipped_by_cutoff}
 
     except Exception as e:
         logger.error(f"Sync job failed: {e}")
@@ -328,8 +354,9 @@ async def run_summarize_job() -> dict:
                 call.emotion = result.emotion
                 call.category = result.category
                 call.priority = result.priority
+                call.email_subject = result.email_subject
                 summarized += 1
-                logger.info(f"Summarized voicemail {call.id} (sentiment={result.sentiment}, urgent={result.priority})")
+                logger.info(f"Summarized voicemail {call.id} (sentiment={result.sentiment}, priority={result.priority})")
 
             except Exception as e:
                 logger.error(f"Failed to summarize voicemail {call.id}: {e}")
@@ -399,15 +426,16 @@ async def run_email_job() -> dict:
         for call in pending:
             email_data = voicemail_to_email_data(call, settings.base_url)
 
-            success = await email_service.send(
+            message_id = await email_service.send(
                 to_email=to_email,
                 data=email_data,
                 attach_audio=False,  # Link only, no attachment
             )
 
-            if success:
+            if message_id:
                 call.email_status = "sent"
                 call.email_sent_at = datetime.now(timezone.utc)
+                call.email_message_id = message_id  # Store for delivery verification
                 sent += 1
             else:
                 call.email_status = "failed"

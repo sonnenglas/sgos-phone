@@ -13,6 +13,7 @@ class SummaryResult:
     emotion: str  # angry, frustrated, happy, confused, calm, urgent
     category: str  # sales_inquiry, existing_order, new_inquiry, complaint, general
     priority: str  # low, default, high
+    email_subject: str  # Short email subject line for notifications
 
 
 class OpenRouterService:
@@ -52,7 +53,12 @@ Your task is to:
    Write TWO summaries:
    - "summary": In the SAME LANGUAGE as the voicemail (e.g., German if the caller spoke German)
    - "summary_en": Always in ENGLISH (translation of the summary)
-3. CLASSIFY the voicemail:
+3. CREATE an email subject line (5-10 words max):
+   - Format: "Caller Name - Topic" (e.g., "Max Müller - Order status inquiry")
+   - If no name mentioned, use "Anruf" or "Call"
+   - Keep it SHORT and scannable
+   - Always in the ORIGINAL LANGUAGE of the voicemail
+4. CLASSIFY the voicemail:
    - sentiment: "positive", "negative", or "neutral"
    - emotion: "angry", "frustrated", "happy", "confused", "calm", or "urgent"
    - category: One of:
@@ -71,6 +77,7 @@ Output format (JSON):
   "corrected_text": "The corrected transcript in original language...",
   "summary": "Brief summary in ORIGINAL LANGUAGE...",
   "summary_en": "Brief summary in ENGLISH...",
+  "email_subject": "Caller Name - Topic",
   "sentiment": "positive|negative|neutral",
   "emotion": "angry|frustrated|happy|confused|calm|urgent",
   "category": "sales_inquiry|existing_order|new_inquiry|complaint|general",
@@ -81,6 +88,7 @@ Important:
 - Preserve the caller's intent and key details
 - The corrected text should be readable and professional
 - The summary should be concise and actionable
+- The email_subject must be very short (5-10 words max)
 - Be conservative with high priority - only for genuinely urgent situations
 - If the transcript is very short or empty, use neutral/calm/general/default as defaults"""
 
@@ -89,7 +97,7 @@ Important:
 TRANSCRIPT:
 {transcript}
 
-Return JSON with corrected_text, summary (in original language), summary_en (English), sentiment, emotion, category, and priority."""
+Return JSON with corrected_text, summary (in original language), summary_en (English), email_subject, sentiment, emotion, category, and priority."""
 
         payload = {
             "model": self.model,
@@ -128,6 +136,7 @@ Return JSON with corrected_text, summary (in original language), summary_en (Eng
                     emotion=parsed.get("emotion", "calm"),
                     category=parsed.get("category", "general"),
                     priority=parsed.get("priority", "default"),
+                    email_subject=parsed.get("email_subject", "Voicemail"),
                 )
             except json.JSONDecodeError:
                 # Fallback if JSON parsing fails
@@ -139,4 +148,5 @@ Return JSON with corrected_text, summary (in original language), summary_en (Eng
                     emotion="calm",
                     category="general",
                     priority="default",
+                    email_subject="Voicemail",
                 )
