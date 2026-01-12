@@ -14,10 +14,9 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install system dependencies and dotenvx
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    && curl -sfS https://dotenvx.sh | sh \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -28,7 +27,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY alembic.ini .
 COPY alembic/ alembic/
 COPY app/ app/
-COPY .env .
 
 # Copy built frontend
 COPY --from=frontend-build /frontend/dist /app/static
@@ -39,6 +37,5 @@ RUN mkdir -p /app/data/voicemails
 EXPOSE 8000
 
 # Run migrations and start server
-# In production (Dokploy), env vars are passed directly
-# In development, use: dotenvx run -- docker compose up
+# Env vars passed via docker-compose env_file
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
