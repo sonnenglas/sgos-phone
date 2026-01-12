@@ -154,6 +154,76 @@ async def run_sync_job() -> dict:
         db.close()
 
 
+async def run_retry_downloads_job() -> dict:
+    """
+    Retry downloading audio for voicemails that are pending but have no local file.
+
+    This handles cases where:
+    - Initial download failed
+    - Signed URL expired before download
+    - Network issues during download
+
+    The PlacetelService.download_voicemail() will automatically fetch a fresh
+    signed URL from the API if the stored URL has expired.
+    """
+    logger.info("Starting retry downloads job...")
+    db = SessionLocal()
+    try:
+        # Find voicemails that need downloading
+        pending = (
+            db.query(Call)
+            .filter(Call.status == "voicemail")
+            .filter(Call.transcription_status == "pending")
+            .filter(Call.local_file_path.is_(None))
+            .filter(Call.duration >= MIN_DURATION_SECONDS)
+            .filter(Call.external_id.isnot(None))
+            .limit(10)
+            .all()
+        )
+
+        if not pending:
+            return {"retried": 0, "success": 0}
+
+        placetel = PlacetelService()
+        success = 0
+        failed = 0
+
+        for call in pending:
+            try:
+                logger.info(f"Retrying download for voicemail {call.id} (external_id={call.external_id})")
+
+                # Try with stored URL first, will auto-refresh if expired
+                file_url = call.file_url
+                if not file_url:
+                    # No stored URL, fetch from API
+                    fresh_data = await placetel.fetch_voicemail_by_id(call.external_id)
+                    if fresh_data and fresh_data.get("file_url"):
+                        file_url = fresh_data["file_url"]
+                        call.file_url = file_url
+                    else:
+                        logger.warning(f"No file_url available for voicemail {call.id}")
+                        continue
+
+                local_path = await placetel.download_voicemail(call.external_id, file_url)
+                call.local_file_path = local_path
+                success += 1
+                logger.info(f"Successfully downloaded voicemail {call.id}")
+
+            except Exception as e:
+                logger.error(f"Failed to retry download for voicemail {call.id}: {e}")
+                failed += 1
+
+        db.commit()
+        logger.info(f"Retry downloads complete: {success} success, {failed} failed")
+        return {"retried": len(pending), "success": success, "failed": failed}
+
+    except Exception as e:
+        logger.error(f"Retry downloads job failed: {e}")
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+
 async def run_transcribe_job() -> dict:
     """Transcribe pending voicemails."""
     if get_setting("auto_transcribe", "true") != "true":
@@ -354,6 +424,7 @@ async def run_email_job() -> dict:
 async def run_all_jobs():
     """Run all processing jobs in sequence."""
     await run_sync_job()
+    await run_retry_downloads_job()  # Retry any failed downloads with fresh URLs
     await run_transcribe_job()
     await run_summarize_job()
     await run_email_job()
@@ -379,8 +450,8 @@ async def create_scheduler() -> AsyncIOScheduler:
     """Create and start the background scheduler."""
     scheduler = AsyncIOScheduler()
 
-    # Get interval from settings (default 15 minutes)
-    interval = int(get_setting("sync_interval_minutes", "15"))
+    # Get interval from settings (default 5 minutes for faster voicemail pickup)
+    interval = int(get_setting("sync_interval_minutes", "5"))
 
     # Add the main processing job
     scheduler.add_job(
