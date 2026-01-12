@@ -23,7 +23,7 @@ from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import Call
-from app.settings import get_setting
+from app.services.scheduler import get_setting
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
 logger = logging.getLogger(__name__)
