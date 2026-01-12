@@ -1,21 +1,4 @@
 services:
-  # Nginx reverse proxy - handles maintenance mode switching
-  proxy:
-    image: nginx:alpine
-    container_name: sgos-phone-proxy
-    ports:
-      - "127.0.0.1:9000:9000"
-    volumes:
-      - ./maintenance-mode:/srv/maintenance-mode:ro
-      - ./maintenance-mode/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - /srv/maintenance:/srv/maintenance:ro  # For global maintenance flag
-    depends_on:
-      - phone
-    restart: unless-stopped
-    networks:
-      - phone-network
-
-  # Phone app (internal, accessed via proxy)
   phone:
     build: .
     container_name: sgos-phone-app
@@ -43,7 +26,8 @@ services:
       start_period: 15s
     restart: unless-stopped
     networks:
-      - phone-network
+      - sgos
+      - internal
 
   db:
     image: postgres:18
@@ -60,10 +44,12 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - phone-network
+      - internal
 
 networks:
-  phone-network:
+  sgos:
+    external: true
+  internal:
     driver: bridge
 
 volumes:
