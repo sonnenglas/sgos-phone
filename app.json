@@ -47,10 +47,14 @@
     }
   },
   "scripts": {
-    "postdeploy": "alembic upgrade head"
+    "postdeploy": "alembic upgrade head",
+    "backup": "./backup.sh"
   },
   "sgos": {
     "domain": "phone.sgl.as",
-    "server": "hornbill"
+    "server": "hornbill",
+    "backup": {
+      "output": "/srv/apps/sgos-phone/backups"
+    }
   }
 }

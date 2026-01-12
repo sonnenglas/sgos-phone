@@ -15,6 +15,7 @@ services:
       - ENV=${ENV:-production}
     volumes:
       - ./data:/app/data
+      - ./backups:/app/backups
     depends_on:
       db:
         condition: service_healthy
