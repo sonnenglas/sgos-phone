@@ -20,3 +20,4 @@ data/voicemails/*.mp3
 
 # OS
 .DS_Store
+docker-compose.override.yml
