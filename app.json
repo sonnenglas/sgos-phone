@@ -1,0 +1,56 @@
+{
+  "name": "sgos-phone",
+  "description": "Voicemail processing and notification system",
+  "version": "1.0.0",
+  "migration": "safe",
+  "repository": "https://github.com/sonnenglas/sgos-phone",
+  "env": {
+    "PLACETEL_API_KEY": {
+      "description": "Placetel API access key",
+      "required": true
+    },
+    "ELEVENLABS_API_KEY": {
+      "description": "ElevenLabs API key for transcription",
+      "required": true
+    },
+    "OPENROUTER_API_KEY": {
+      "description": "OpenRouter API key for AI summarization",
+      "required": true
+    },
+    "POSTMARK_API_TOKEN": {
+      "description": "Postmark token for email sending",
+      "required": true
+    },
+    "PUBLIC_ACCESS_SECRET": {
+      "description": "Secret for generating public access tokens",
+      "required": true
+    },
+    "DATABASE_URL": {
+      "description": "PostgreSQL connection string",
+      "required": true
+    },
+    "BASE_URL": {
+      "description": "Public URL of the app (for email links)",
+      "required": true
+    },
+    "EMAIL_FROM": {
+      "description": "Sender email address",
+      "required": true
+    },
+    "EMAIL_FROM_NAME": {
+      "description": "Sender name",
+      "required": false
+    },
+    "SENTRY_DSN": {
+      "description": "GlitchTip/Sentry DSN for error tracking",
+      "required": false
+    }
+  },
+  "scripts": {
+    "postdeploy": "alembic upgrade head"
+  },
+  "sgos": {
+    "domain": "phone.sgl.as",
+    "server": "hornbill"
+  }
+}

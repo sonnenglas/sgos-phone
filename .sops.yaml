@@ -1,0 +1,7 @@
+# SOPS configuration for encrypting secrets
+# https://github.com/getsops/sops
+
+creation_rules:
+  # Encrypt .env files as .env.sops
+  - path_regex: \.env\.sops$
+    age: age1nh9zuzsmewquyr0xlv7vzzsug0fat6ju5kznxhlpkcrujwtjevyqe6vl5g

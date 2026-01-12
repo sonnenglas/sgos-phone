@@ -1,5 +1,6 @@
-# dotenvx - .env is encrypted and safe to commit
-# These contain the private key - NEVER commit
+# Secrets - SOPS encrypted .env.sops is safe to commit
+# Decrypted .env files should NEVER be committed
+.env
 .env.keys
 .env.docker
 
